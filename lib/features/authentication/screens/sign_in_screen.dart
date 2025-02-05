@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import 'sign_up_screen.dart';
 import '../../home/screens/home_screen.dart';
 import 'package:file_picker/file_picker.dart';
 
 class SignInScreen extends StatefulWidget {
+  final FirebaseAuth auth;
+
+  SignInScreen({
+    super.key,
+    FirebaseAuth? auth,
+  }) : auth = auth ?? FirebaseAuth.instance;
+
   @override
   State<SignInScreen> createState() => _SignInScreenState();
 }
@@ -12,19 +20,68 @@ class SignInScreen extends StatefulWidget {
 class _SignInScreenState extends State<SignInScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isLoading = false;
+
+  void _showLoadingOverlay() {
+    setState(() {
+      _isLoading = true;
+    });
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => WillPopScope(
+        onWillPop: () async => false,
+        child: const Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Signing in with GitHub...'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _hideLoadingOverlay() {
+    if (_isLoading) {
+      Navigator.of(context).pop(); // Remove the loading overlay
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   Future<void> _signIn() async {
+    if (_emailController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter an email')),
+      );
+      return;
+    }
+
+    if (_passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a password')),
+      );
+      return;
+    }
+
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      await widget.auth.signInWithEmailAndPassword(
         email: _emailController.text,
         password: _passwordController.text,
       );
       
       if (context.mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
+        Navigator.pushReplacementNamed(context, '/home');
       }
     } on FirebaseAuthException catch (e) {
       String message;
@@ -44,6 +101,66 @@ class _SignInScreenState extends State<SignInScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
+    }
+  }
+
+  Future<void> _signInWithGitHub() async {
+    _showLoadingOverlay();
+
+    try {
+      final githubProvider = GithubAuthProvider();
+      // Add a timeout to prevent indefinite waiting
+      final userCredential = await widget.auth.signInWithProvider(githubProvider)
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => throw TimeoutException('Sign in timed out'),
+          );
+      
+      if (context.mounted) {
+        _hideLoadingOverlay();
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } on TimeoutException {
+      if (context.mounted) {
+        _hideLoadingOverlay();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sign in timed out. Please try again.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'operation-not-allowed':
+          message = 'GitHub sign in is not enabled';
+          break;
+        case 'account-exists-with-different-credential':
+          message = 'An account already exists with this email';
+          break;
+        default:
+          message = e.message ?? 'An error occurred';
+      }
+      if (context.mounted) {
+        _hideLoadingOverlay();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        _hideLoadingOverlay();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An unexpected error occurred: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -92,6 +209,7 @@ class _SignInScreenState extends State<SignInScreen> {
               ),
               const SizedBox(height: 32),
               TextField(
+                key: const Key('email'),
                 controller: _emailController,
                 decoration: const InputDecoration(
                   labelText: 'Email',
@@ -111,6 +229,7 @@ class _SignInScreenState extends State<SignInScreen> {
               ),
               const SizedBox(height: 16),
               TextField(
+                key: const Key('password'),
                 controller: _passwordController,
                 decoration: const InputDecoration(
                   labelText: 'Password',
@@ -160,16 +279,20 @@ class _SignInScreenState extends State<SignInScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: () {
-                      // TODO: Implement GitHub Sign In
-                      // TODO: - Add github_sign_in package
-                      // TODO: - Configure GitHub OAuth App
-                      // TODO: - Add Firebase Authentication for GitHub
-                    },
-                    icon: const Icon(Icons.code, color: Colors.white),
-                    label: const Text(
-                      'GitHub',
-                      style: TextStyle(
+                    onPressed: _isLoading ? null : _signInWithGitHub,
+                    icon: _isLoading 
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.code, color: Colors.white),
+                    label: Text(
+                      _isLoading ? 'Signing in...' : 'GitHub',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
                       ),
@@ -190,7 +313,7 @@ class _SignInScreenState extends State<SignInScreen> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const SignUpScreen()),
+                    MaterialPageRoute(builder: (context) => SignUpScreen()),
                   );
                 },
                 child: const Text(
