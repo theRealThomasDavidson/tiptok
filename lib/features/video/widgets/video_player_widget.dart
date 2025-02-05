@@ -19,6 +19,7 @@ class VideoPlayerWidget extends StatefulWidget {
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   late VideoPlayerController _controller;
   bool _isInitialized = false;
+  bool _isShowingEndIndicator = false;
 
   @override
   void initState() {
@@ -30,7 +31,33 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         setState(() {
           _isInitialized = true;
         });
+        _controller.play();
+        _setupVideoLoop();
       });
+  }
+
+  void _setupVideoLoop() {
+    _controller.addListener(() {
+      if (_controller.value.position >= _controller.value.duration) {
+        setState(() {
+          _isShowingEndIndicator = true;
+        });
+        
+        // Pause at the end
+        _controller.pause();
+        
+        // Wait for 500ms, then restart
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            setState(() {
+              _isShowingEndIndicator = false;
+            });
+            _controller.seekTo(Duration.zero);
+            _controller.play();
+          }
+        });
+      }
+    });
   }
 
   @override
@@ -62,6 +89,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
               alignment: Alignment.center,
               children: [
                 VideoPlayer(_controller),
+                // Play/Pause indicator
                 AnimatedOpacity(
                   opacity: _controller.value.isPlaying ? 0.0 : 1.0,
                   duration: const Duration(milliseconds: 300),
@@ -73,6 +101,32 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                       Icons.play_arrow,
                       size: 80,
                       color: Colors.white,
+                    ),
+                  ),
+                ),
+                // End of video indicator
+                AnimatedOpacity(
+                  opacity: _isShowingEndIndicator ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.replay, color: Colors.white, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Restarting...',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
