@@ -4,12 +4,14 @@ class VideoModel {
   final String id;
   final String userId;
   final String url;
+  final String? thumbnailUrl;
   final DateTime timestamp;
 
   VideoModel({
     required this.id,
     required this.userId,
     required this.url,
+    this.thumbnailUrl,
     required this.timestamp,
   });
 
@@ -17,6 +19,7 @@ class VideoModel {
     'id': id,
     'userId': userId,
     'url': url,
+    'thumbnailUrl': thumbnailUrl,
     'timestamp': timestamp.toIso8601String(),
   };
 
@@ -24,6 +27,7 @@ class VideoModel {
     id: json['id'] as String,
     userId: json['userId'] as String,
     url: json['url'] as String,
+    thumbnailUrl: json['thumbnailUrl'] as String?,
     timestamp: DateTime.parse(json['timestamp'] as String),
   );
 } 

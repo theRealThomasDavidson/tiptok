@@ -33,6 +33,27 @@
   <title>TipTok</title>
   <link rel="manifest" href="manifest.json">
 
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js"></script>
+
+  <!-- Initialize Firebase -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAmO0rbiGHEuPfafaWi_W_FtpjL0wEy_oM",
+      authDomain: "tiptok-f2819.firebaseapp.com",
+      projectId: "tiptok-f2819",
+      storageBucket: "tiptok-f2819.firebasestorage.app",
+      messagingSenderId: "606703658209",
+      appId: "1:606703658209:android:a572a2b421ff68002b03a0"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+  </script>
+
   <script>
     // The value below is injected by flutter build, do not touch.
     var serviceWorkerVersion = null;
