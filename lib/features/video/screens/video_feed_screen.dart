@@ -82,9 +82,39 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
           return Stack(
             fit: StackFit.expand,
             children: [
-              // Video Player
-              VideoPlayerWidget(
-                videoUrl: video.url,
+              // Video Player with Loading State
+              Container(
+                color: Colors.black,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    VideoPlayerWidget(
+                      videoUrl: video.url,
+                    ),
+                    // Loading Placeholder
+                    if (video.thumbnailUrl == null)
+                      Container(
+                        color: Colors.black54,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Loading Video...',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
               
               // Metadata Overlay
