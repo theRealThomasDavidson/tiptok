@@ -234,15 +234,52 @@ class _SignInScreenState extends State<SignInScreen> {
 
     try {
       final githubProvider = GithubAuthProvider();
-      await widget.auth.signInWithProvider(githubProvider)
-          .timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => throw TimeoutException('Sign in timed out'),
-          );
-      
-      if (context.mounted) {
-        _hideLoadingOverlay();
-        Navigator.pushReplacementNamed(context, '/home');
+      githubProvider.addScope('read:user');
+      githubProvider.addScope('user:email');
+
+      // First attempt sign in
+      try {
+        await widget.auth.signInWithProvider(githubProvider)
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () => throw TimeoutException('Sign in timed out'),
+            );
+        
+        if (context.mounted) {
+          _hideLoadingOverlay();
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+        return;
+      } on FirebaseAuthException catch (e) {
+        // If user doesn't exist, proceed with sign up
+        if (e.code == 'user-not-found') {
+          if (context.mounted) {
+            _showLoadingOverlay(message: 'Creating account...');
+          }
+          
+          // Try sign up
+          final userCredential = await widget.auth.signInWithProvider(githubProvider);
+          
+          // Update display name if not set
+          if (userCredential.user?.displayName == null) {
+            await userCredential.user?.updateDisplayName(
+              userCredential.user?.email?.split('@')[0] ?? 'GitHub User'
+            );
+          }
+
+          if (context.mounted) {
+            _hideLoadingOverlay();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Account created successfully'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+            Navigator.pushReplacementNamed(context, '/home');
+          }
+          return;
+        }
+        rethrow;
       }
     } on TimeoutException {
       if (context.mounted) {
