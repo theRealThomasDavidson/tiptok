@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tiptok/features/authentication/screens/sign_in_screen.dart';
 import 'package:tiptok/features/video/screens/video_upload_screen.dart';
 import 'package:tiptok/features/video/screens/video_feed_screen.dart';
+import 'package:tiptok/features/playlist/screens/playlist_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _screens = [
     const VideoFeedScreen(),
     const VideoUploadScreen(),
+    PlaylistListScreen(),
   ];
 
   void _signOut(BuildContext context) async {
@@ -51,6 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _selectedIndex = index;
           });
         },
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
@@ -59,6 +62,10 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.add),
             label: 'Upload',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.playlist_play),
+            label: 'Playlists',
           ),
         ],
       ),

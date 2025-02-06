@@ -69,3 +69,7 @@ app.*.map.json
 **/ios/**/profile
 **/ios/**/xcuserdata
 google-services.json
+
+# Firebase service account and migration scripts
+service-account-key.json
+scripts/__pycache__/
