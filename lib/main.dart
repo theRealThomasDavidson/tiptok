@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -14,22 +16,53 @@ late final String FIREBASE_PROJECT_ID;
 late final String FIREBASE_STORAGE_BUCKET;
 late final String FIREBASE_AUTH_DOMAIN;
 
+Future<void> initializeFirebase() async {
+  try {
+    // Initialize Firebase Core first
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint('Firebase Core initialized');
+
+    // Wait a bit to ensure core initialization is complete
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Initialize Firestore with settings
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    debugPrint('Firestore settings configured');
+
+    // Test Firestore connection
+    await FirebaseFirestore.instance.collection('test').doc('test').get()
+        .timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => throw TimeoutException('Firestore connection test timed out'),
+        );
+    debugPrint('Firestore connection test successful');
+
+    // Initialize App Check last
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.debug,
+    );
+    debugPrint('Firebase App Check activated');
+
+    debugPrint('All Firebase services initialized successfully');
+  } catch (e, stackTrace) {
+    debugPrint('Error during Firebase initialization: $e');
+    debugPrint('Stack trace: $stackTrace');
+    rethrow;
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-    // Initialize Firebase first with default options
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-
-    // Initialize App Check after Firebase
-    await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.debug,
-      webProvider: ReCaptchaV3Provider('YOUR-RECAPTCHA-V3-SITE-KEY'),
-    );
+    await initializeFirebase();
   } catch (e) {
-    debugPrint('Error during initialization: $e');
+    debugPrint('Failed to initialize Firebase: $e');
   }
 
   runApp(const MyApp());
