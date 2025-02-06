@@ -17,39 +17,22 @@ late final String FIREBASE_AUTH_DOMAIN;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Load .env first
-  await dotenv.load(fileName: ".env");
-  
-  // Then access env variables
-  FIREBASE_API_KEY = dotenv.env['FIREBASE_API_KEY']!;
-  FIREBASE_APP_ID = dotenv.env['FIREBASE_APP_ID']!;
-  FIREBASE_MESSAGING_SENDER_ID = dotenv.env['FIREBASE_MESSAGING_SENDER_ID']!;
-  FIREBASE_PROJECT_ID = dotenv.env['FIREBASE_PROJECT_ID']!;
-  FIREBASE_STORAGE_BUCKET = dotenv.env['FIREBASE_STORAGE_BUCKET']!;
-  FIREBASE_AUTH_DOMAIN = dotenv.env['FIREBASE_AUTH_DOMAIN']!;
+  try {
+    // Initialize Firebase first with default options
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
-  // Initialize Firebase first
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+    // Initialize App Check after Firebase
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.debug,
+      webProvider: ReCaptchaV3Provider('YOUR-RECAPTCHA-V3-SITE-KEY'),
+    );
+  } catch (e) {
+    debugPrint('Error during initialization: $e');
+  }
 
   runApp(const MyApp());
-
-  // Initialize App Check after the app starts
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    try {
-      await FirebaseAppCheck.instance.activate(
-        androidProvider: AndroidProvider.debug,
-      );
-
-      final token = await FirebaseAppCheck.instance.getToken();
-      debugPrint('App Check Debug Token: $token');
-      
-      debugPrint('Firebase App Check initialized successfully');
-    } catch (e) {
-      debugPrint('Error initializing App Check: $e');
-    }
-  });
 }
 
 class MyApp extends StatelessWidget {
@@ -59,7 +42,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'TikTok Clone - Hot Reload Test',
+      title: 'TipTok',
       theme: ThemeData(
         // This is the theme of your application.
         //
