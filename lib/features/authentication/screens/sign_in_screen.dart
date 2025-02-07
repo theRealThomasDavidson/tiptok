@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'sign_up_screen.dart';
 import '../../home/screens/home_screen.dart';
-import 'package:file_picker/file_picker.dart';
 
 class SignInScreen extends StatefulWidget {
   final FirebaseAuth auth;
@@ -22,7 +21,7 @@ class _SignInScreenState extends State<SignInScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
 
-  void _showLoadingOverlay() {
+  void _showLoadingOverlay({String message = 'Loading...'}) {
     setState(() {
       _isLoading = true;
     });
@@ -31,16 +30,16 @@ class _SignInScreenState extends State<SignInScreen> {
       barrierDismissible: false,
       builder: (context) => WillPopScope(
         onWillPop: () async => false,
-        child: const Center(
+        child: Center(
           child: Card(
             child: Padding(
-              padding: EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Signing in with GitHub...'),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(message),
                 ],
               ),
             ),
@@ -74,16 +73,23 @@ class _SignInScreenState extends State<SignInScreen> {
       return;
     }
 
+    debugPrint('Attempting to sign in with email: ${_emailController.text}');
+    _showLoadingOverlay(message: 'Signing in...');
+
     try {
-      await widget.auth.signInWithEmailAndPassword(
+      final userCredential = await widget.auth.signInWithEmailAndPassword(
         email: _emailController.text,
         password: _passwordController.text,
       );
       
+      debugPrint('Sign in successful. User ID: ${userCredential.user?.uid}');
+      
       if (context.mounted) {
+        _hideLoadingOverlay();
         Navigator.pushReplacementNamed(context, '/home');
       }
     } on FirebaseAuthException catch (e) {
+      debugPrint('FirebaseAuthException during sign in: ${e.code} - ${e.message}');
       String message;
       switch (e.code) {
         case 'user-not-found':
@@ -95,70 +101,27 @@ class _SignInScreenState extends State<SignInScreen> {
         case 'invalid-email':
           message = 'The email address is badly formatted';
           break;
-        default:
-          message = e.message ?? 'An error occurred';
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    }
-  }
-
-  Future<void> _signInWithGitHub() async {
-    _showLoadingOverlay();
-
-    try {
-      final githubProvider = GithubAuthProvider();
-      // Add a timeout to prevent indefinite waiting
-      final userCredential = await widget.auth.signInWithProvider(githubProvider)
-          .timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => throw TimeoutException('Sign in timed out'),
-          );
-      
-      if (context.mounted) {
-        _hideLoadingOverlay();
-        Navigator.pushReplacementNamed(context, '/home');
-      }
-    } on TimeoutException {
-      if (context.mounted) {
-        _hideLoadingOverlay();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sign in timed out. Please try again.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      String message;
-      switch (e.code) {
-        case 'operation-not-allowed':
-          message = 'GitHub sign in is not enabled';
+        case 'user-disabled':
+          message = 'This user account has been disabled';
           break;
-        case 'account-exists-with-different-credential':
-          message = 'An account already exists with this email';
+        case 'too-many-requests':
+          message = 'Too many attempts. Please try again later';
           break;
         default:
           message = e.message ?? 'An error occurred';
       }
+      _hideLoadingOverlay();
       if (context.mounted) {
-        _hideLoadingOverlay();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            duration: const Duration(seconds: 3),
-          ),
+          SnackBar(content: Text(message)),
         );
       }
     } catch (e) {
+      debugPrint('Unexpected error during sign in: $e');
+      _hideLoadingOverlay();
       if (context.mounted) {
-        _hideLoadingOverlay();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('An unexpected error occurred: ${e.toString()}'),
-            duration: const Duration(seconds: 3),
-          ),
+          SnackBar(content: Text('An unexpected error occurred: $e')),
         );
       }
     }
@@ -209,7 +172,7 @@ class _SignInScreenState extends State<SignInScreen> {
               ),
               const SizedBox(height: 32),
               TextField(
-                key: const Key('email'),
+                key: const ValueKey('email'),
                 controller: _emailController,
                 decoration: const InputDecoration(
                   labelText: 'Email',
@@ -229,7 +192,7 @@ class _SignInScreenState extends State<SignInScreen> {
               ),
               const SizedBox(height: 16),
               TextField(
-                key: const Key('password'),
+                key: const ValueKey('password'),
                 controller: _passwordController,
                 decoration: const InputDecoration(
                   labelText: 'Password',
@@ -250,79 +213,36 @@ class _SignInScreenState extends State<SignInScreen> {
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                height: 50,
                 child: ElevatedButton(
                   onPressed: _signIn,
                   style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
                   ),
-                  child: const Text(
-                    'Sign In',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Or continue with',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 14,
+                  child: const Text('Sign In'),
                 ),
               ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _signInWithGitHub,
-                    icon: _isLoading 
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  const Text("Don't have an account? "),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SignUpScreen(
+                            auth: widget.auth,
                           ),
-                        )
-                      : const Icon(Icons.code, color: Colors.white),
-                    label: Text(
-                      _isLoading ? 'Signing in...' : 'GitHub',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      backgroundColor: Colors.blue,
-                      side: BorderSide.none,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
+                        ),
+                      );
+                    },
+                    child: const Text('Sign Up'),
                   ),
                 ],
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => SignUpScreen()),
-                  );
-                },
-                child: const Text(
-                  'Don\'t have an account? Sign Up',
-                  style: TextStyle(
-                    color: Colors.blue,
-                    fontSize: 14,
-                  ),
-                ),
               ),
             ],
           ),
