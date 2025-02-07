@@ -14,6 +14,9 @@ late final String FIREBASE_PROJECT_ID;
 late final String FIREBASE_STORAGE_BUCKET;
 late final String FIREBASE_AUTH_DOMAIN;
 
+// Set this to false to bypass App Check during development
+const bool ENABLE_APP_CHECK = false;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -33,23 +36,31 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  runApp(const MyApp());
-
-  // Initialize App Check after the app starts
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
+  if (ENABLE_APP_CHECK) {
+    debugPrint('\n=== STARTING APP CHECK INITIALIZATION ===');
     try {
+      debugPrint('Activating App Check...');
       await FirebaseAppCheck.instance.activate(
         androidProvider: AndroidProvider.debug,
       );
 
+      if (dotenv.env['FIREBASE_APP_CHECK_DEBUG_TOKEN'] != null) {
+        debugPrint('Debug token from env: ${dotenv.env['FIREBASE_APP_CHECK_DEBUG_TOKEN']}');
+      }
+
+      debugPrint('Getting App Check token...');
       final token = await FirebaseAppCheck.instance.getToken();
-      debugPrint('App Check Debug Token: $token');
-      
-      debugPrint('Firebase App Check initialized successfully');
+      debugPrint('✅ App Check Token: $token');
+      debugPrint('✅ Firebase App Check initialized successfully');
     } catch (e) {
-      debugPrint('Error initializing App Check: $e');
+      debugPrint('❌ App Check Error: $e');
     }
-  });
+    debugPrint('=== FINISHED APP CHECK INITIALIZATION ===\n');
+  } else {
+    debugPrint('\n=== APP CHECK DISABLED FOR DEVELOPMENT ===\n');
+  }
+
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
