@@ -44,6 +44,8 @@ class _PlaylistAddVideosScreenState extends State<PlaylistAddVideosScreen> {
     try {
       // Load all available videos from Firestore
       _allVideos = await widget.videoService.getAllVideos();
+      // Initialize selected videos from playlist
+      _selectedVideoIds.addAll(widget.playlist.videoIds);
       debugPrint('Loaded ${_allVideos.length} videos');
     } catch (e) {
       debugPrint('Error loading videos: $e');
@@ -64,14 +66,69 @@ class _PlaylistAddVideosScreenState extends State<PlaylistAddVideosScreen> {
     }
   }
 
-  void _toggleVideoSelection(String videoId) {
+  void _toggleVideoSelection(String videoId) async {
     setState(() {
-      if (_selectedVideoIds.contains(videoId)) {
-        _selectedVideoIds.remove(videoId);
-      } else {
-        _selectedVideoIds.add(videoId);
-      }
+      _isLoading = true;
     });
+
+    try {
+      if (_selectedVideoIds.contains(videoId)) {
+        // Remove video from playlist
+        await widget.playlistService.removeVideoFromPlaylist(
+          widget.playlist.id,
+          videoId,
+        );
+        setState(() {
+          _selectedVideoIds.remove(videoId);
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Video removed from playlist'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Pop with result to trigger refresh
+          Navigator.pop(context, true);
+        }
+      } else {
+        // Add video to playlist
+        await widget.playlistService.addVideoToPlaylist(
+          widget.playlist.id,
+          videoId,
+        );
+        setState(() {
+          _selectedVideoIds.add(videoId);
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Video added to playlist'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Pop with result to trigger refresh
+          Navigator.pop(context, true);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating playlist: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
