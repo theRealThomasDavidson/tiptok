@@ -69,8 +69,10 @@ class _PlaylistViewScreenState extends State<PlaylistViewScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      // Instead of showing error, just show empty state
       setState(() {
-        _error = e.toString();
+        _videos = [];
+        _availableVideos = [];
         _isLoading = false;
       });
     }
@@ -175,197 +177,183 @@ class _PlaylistViewScreenState extends State<PlaylistViewScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Available Videos Section
+                if (_availableVideos != null && _availableVideos!.isNotEmpty)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Error: $_error'),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadVideos,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Available Videos Section
-                    if (_availableVideos != null && _availableVideos!.isNotEmpty)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text(
-                              'Available Videos',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                          ),
-                          SizedBox(
-                            height: 150,
-                            child: ListView.builder(
-                              scrollDirection: Axis.horizontal,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              itemCount: _availableVideos!.length,
-                              itemBuilder: (context, index) {
-                                final video = _availableVideos![index];
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  child: SizedBox(
-                                    width: 200,
-                                    child: Card(
-                                      clipBehavior: Clip.antiAlias,
-                                      child: InkWell(
-                                        onTap: () => _addVideoToPlaylist(video),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                                          children: [
-                                            Expanded(
-                                              child: Stack(
-                                                fit: StackFit.expand,
-                                                children: [
-                                                  if (video.thumbnailUrl != null)
-                                                    Image.network(
-                                                      video.thumbnailUrl!,
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder: (context, error, stackTrace) {
-                                                        return _buildPlaceholder();
-                                                      },
-                                                    )
-                                                  else
-                                                    _buildPlaceholder(),
-                                                  Container(
-                                                    decoration: BoxDecoration(
-                                                      gradient: LinearGradient(
-                                                        begin: Alignment.center,
-                                                        end: Alignment.bottomCenter,
-                                                        colors: [
-                                                          Colors.transparent,
-                                                          Colors.black.withOpacity(0.7),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const Center(
-                                                    child: Icon(
-                                                      Icons.add_circle_outline,
-                                                      color: Colors.white,
-                                                      size: 40,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(8.0),
-                                              child: Text(
-                                                'Tap to add',
-                                                style: Theme.of(context).textTheme.bodyMedium,
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const Divider(height: 32, thickness: 2),
-                        ],
-                      ),
-
-                    // Playlist Videos Section
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'Playlist Videos',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                    if (_videos == null || _videos!.isEmpty)
-                      const Expanded(
-                        child: Center(
-                          child: Text('No videos in playlist yet'),
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'Available Videos',
+                          style: Theme.of(context).textTheme.titleLarge,
                         ),
-                      )
-                    else
-                      Expanded(
+                      ),
+                      SizedBox(
+                        height: 150,
                         child: ListView.builder(
-                          padding: const EdgeInsets.all(8),
-                          itemCount: _videos!.length,
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          itemCount: _availableVideos!.length,
                           itemBuilder: (context, index) {
-                            final video = _videos![index];
-                            return Card(
-                              margin: const EdgeInsets.symmetric(
-                                vertical: 4,
-                                horizontal: 8,
-                              ),
-                              child: Column(
-                                children: [
-                                  AspectRatio(
-                                    aspectRatio: 16 / 9,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[200],
-                                        borderRadius: const BorderRadius.vertical(
-                                          top: Radius.circular(4),
-                                        ),
-                                      ),
-                                      child: video.thumbnailUrl != null
-                                          ? Image.network(
-                                              video.thumbnailUrl!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                return _buildPlaceholder();
-                                              },
-                                            )
-                                          : _buildPlaceholder(),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            final video = _availableVideos![index];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              child: SizedBox(
+                                width: 200,
+                                child: Card(
+                                  clipBehavior: Clip.antiAlias,
+                                  child: InkWell(
+                                    onTap: () => _addVideoToPlaylist(video),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
                                       children: [
-                                        Text(
-                                          'Video ${index + 1}',
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
+                                        Expanded(
+                                          child: Stack(
+                                            fit: StackFit.expand,
+                                            children: [
+                                              if (video.thumbnailUrl != null)
+                                                Image.network(
+                                                  video.thumbnailUrl!,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) {
+                                                    return _buildPlaceholder();
+                                                  },
+                                                )
+                                              else
+                                                _buildPlaceholder(),
+                                              Container(
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    begin: Alignment.center,
+                                                    end: Alignment.bottomCenter,
+                                                    colors: [
+                                                      Colors.transparent,
+                                                      Colors.black.withOpacity(0.7),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                              const Center(
+                                                child: Icon(
+                                                  Icons.add_circle_outline,
+                                                  color: Colors.white,
+                                                  size: 40,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        Row(
-                                          children: [
-                                            IconButton(
-                                              icon: const Icon(Icons.remove_circle_outline),
-                                              color: Colors.red,
-                                              onPressed: () => _removeVideoFromPlaylist(video),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            ElevatedButton.icon(
-                                              onPressed: () => _navigateToPlayback(index),
-                                              icon: const Icon(Icons.play_arrow),
-                                              label: const Text('Play'),
-                                            ),
-                                          ],
+                                        Padding(
+                                          padding: const EdgeInsets.all(8.0),
+                                          child: Text(
+                                            'Tap to add',
+                                            style: Theme.of(context).textTheme.bodyMedium,
+                                            textAlign: TextAlign.center,
+                                          ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                ],
+                                ),
                               ),
                             );
                           },
                         ),
                       ),
-                  ],
+                      const Divider(height: 32, thickness: 2),
+                    ],
+                  ),
+
+                // Playlist Videos Section
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Playlist Videos',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                 ),
+                if (_videos == null || _videos!.isEmpty)
+                  const Expanded(
+                    child: Center(
+                      child: Text('No videos in playlist yet'),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(8),
+                      itemCount: _videos!.length,
+                      itemBuilder: (context, index) {
+                        final video = _videos![index];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            vertical: 4,
+                            horizontal: 8,
+                          ),
+                          child: Column(
+                            children: [
+                              AspectRatio(
+                                aspectRatio: 16 / 9,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(4),
+                                    ),
+                                  ),
+                                  child: video.thumbnailUrl != null
+                                      ? Image.network(
+                                          video.thumbnailUrl!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return _buildPlaceholder();
+                                          },
+                                        )
+                                      : _buildPlaceholder(),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Video ${index + 1}',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.remove_circle_outline),
+                                          color: Colors.red,
+                                          onPressed: () => _removeVideoFromPlaylist(video),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        ElevatedButton.icon(
+                                          onPressed: () => _navigateToPlayback(index),
+                                          icon: const Icon(Icons.play_arrow),
+                                          label: const Text('Play'),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 

@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'video_edit_screen.dart';
+import 'video_segment_playlist_editor_screen.dart';
 import 'camera_screen.dart';
 
 class VideoUploadScreen extends StatefulWidget {
@@ -39,7 +39,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => VideoEditScreen(
+            builder: (context) => VideoSegmentPlaylistEditorScreen(
               videoPath: file.path,
             ),
           ),

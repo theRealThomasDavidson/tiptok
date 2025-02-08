@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:path_provider/path_provider.dart';
-import 'video_edit_screen.dart';
+import 'video_segment_playlist_editor_screen.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -111,7 +111,7 @@ class _CameraScreenState extends State<CameraScreen> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => VideoEditScreen(
+              builder: (context) => VideoSegmentPlaylistEditorScreen(
                 videoPath: video.path,
               ),
             ),

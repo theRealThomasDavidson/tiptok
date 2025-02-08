@@ -53,11 +53,16 @@ class _PlaylistPlaybackScreenState extends State<PlaylistPlaybackScreen> {
       // Filter and sort videos according to playlist order
       final playlistVideos = <VideoModel>[];
       for (final videoId in widget.playlist.videoIds) {
-        final video = allVideos.firstWhere(
-          (v) => v.id == videoId,
-          orElse: () => throw Exception('Video $videoId not found'),
-        );
-        playlistVideos.add(video);
+        try {
+          final video = allVideos.firstWhere(
+            (v) => v.id == videoId,
+            orElse: () => throw Exception('Video $videoId not found'),
+          );
+          playlistVideos.add(video);
+        } catch (e) {
+          // Silently skip videos that can't be loaded
+          continue;
+        }
       }
 
       setState(() {
@@ -65,8 +70,9 @@ class _PlaylistPlaybackScreenState extends State<PlaylistPlaybackScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      // Instead of showing error, just show empty state
       setState(() {
-        _error = e.toString();
+        _videos = [];
         _isLoading = false;
       });
     }
@@ -96,110 +102,96 @@ class _PlaylistPlaybackScreenState extends State<PlaylistPlaybackScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('Error: $_error'),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadPlaylistVideos,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
+          : _videos!.isEmpty
+              ? const Center(
+                  child: Text('No videos in this playlist'),
                 )
-              : _videos!.isEmpty
-                  ? const Center(
-                      child: Text('No videos in this playlist'),
-                    )
-                  : Column(
-                      children: [
-                        // Video Player with PageView for swipe navigation
-                        Expanded(
-                          child: PageView.builder(
-                            controller: _pageController,
-                            onPageChanged: (index) {
-                              setState(() {
-                                _currentIndex = index;
-                              });
-                            },
-                            itemCount: _videos!.length,
-                            itemBuilder: (context, index) {
-                              return VideoPlayerWidget(
-                                videoUrl: _videos![index].url,
-                              );
-                            },
+              : Column(
+                  children: [
+                    // Video Player with PageView for swipe navigation
+                    Expanded(
+                      child: PageView.builder(
+                        controller: _pageController,
+                        onPageChanged: (index) {
+                          setState(() {
+                            _currentIndex = index;
+                          });
+                        },
+                        itemCount: _videos!.length,
+                        itemBuilder: (context, index) {
+                          return VideoPlayerWidget(
+                            videoUrl: _videos![index].url,
+                          );
+                        },
+                      ),
+                    ),
+                    // Playlist Controls
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      color: Colors.black87,
+                      child: Column(
+                        children: [
+                          // Progress indicator
+                          LinearProgressIndicator(
+                            value: (_currentIndex + 1) / _videos!.length,
+                            backgroundColor: Colors.grey[800],
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Colors.blue,
+                            ),
                           ),
-                        ),
-                        // Playlist Controls
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          color: Colors.black87,
-                          child: Column(
+                          const SizedBox(height: 16),
+                          // Video info and swipe hint
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              // Progress indicator
-                              LinearProgressIndicator(
-                                value: (_currentIndex + 1) / _videos!.length,
-                                backgroundColor: Colors.grey[800],
-                                valueColor: const AlwaysStoppedAnimation<Color>(
-                                  Colors.blue,
+                              Text(
+                                'Video ${_currentIndex + 1} of ${_videos!.length}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
                                 ),
                               ),
-                              const SizedBox(height: 16),
-                              // Video info and swipe hint
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Video ${_currentIndex + 1} of ${_videos!.length}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Icon(
-                                    Icons.swipe,
-                                    color: Colors.white.withOpacity(0.7),
-                                    size: 16,
-                                  ),
-                                  Text(
-                                    ' Swipe to navigate',
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
+                              const SizedBox(width: 8),
+                              Icon(
+                                Icons.swipe,
+                                color: Colors.white.withOpacity(0.7),
+                                size: 16,
                               ),
-                              const SizedBox(height: 16),
-                              // Control buttons
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.skip_previous),
-                                    onPressed: _currentIndex > 0
-                                        ? _playPreviousVideo
-                                        : null,
-                                    color: Colors.white,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.skip_next),
-                                    onPressed: _currentIndex < _videos!.length - 1
-                                        ? _playNextVideo
-                                        : null,
-                                    color: Colors.white,
-                                  ),
-                                ],
+                              Text(
+                                ' Swipe to navigate',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.7),
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 16),
+                          // Control buttons
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.skip_previous),
+                                onPressed: _currentIndex > 0
+                                    ? _playPreviousVideo
+                                    : null,
+                                color: Colors.white,
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.skip_next),
+                                onPressed: _currentIndex < _videos!.length - 1
+                                    ? _playNextVideo
+                                    : null,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
+                  ],
+                ),
     );
   }
 } 
