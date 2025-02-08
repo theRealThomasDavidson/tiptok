@@ -8,11 +8,14 @@ import '../widgets/video_player_widget.dart';
 import '../services/video_storage_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import '../models/video_segment_model.dart';
+import '../widgets/video_segment_editor.dart';
 
 class VideoEditScreen extends StatefulWidget {
   final String videoPath;
   final FirebaseAuth auth;
   final FirebaseStorage storage;
+  final VideoStorageService storageService;
   static const int MAX_DURATION_SECONDS = 60;
 
   VideoEditScreen({
@@ -20,8 +23,10 @@ class VideoEditScreen extends StatefulWidget {
     required this.videoPath,
     FirebaseAuth? auth,
     FirebaseStorage? storage,
-  }) : auth = auth ?? FirebaseAuth.instance,
-       storage = storage ?? FirebaseStorage.instance;
+    VideoStorageService? storageService,
+  })  : auth = auth ?? FirebaseAuth.instance,
+        storage = storage ?? FirebaseStorage.instance,
+        storageService = storageService ?? VideoStorageService();
 
   @override
   State<VideoEditScreen> createState() => _VideoEditScreenState();
@@ -33,17 +38,19 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
   late VideoPlayerController _videoController;
   bool _isInitialized = false;
   bool _isTrimming = false;
-  bool _isLoading = false;
+  bool _isLoading = true;
   bool _isPlaying = false;
   double _startTime = 0.0;
   double _endTime = 0.0;
   String? _editedVideoPath;
   String? _error;
+  List<VideoSegment> _segments = [];
+  int _activeSegmentIndex = -1;
 
   @override
   void initState() {
     super.initState();
-    _storageService = VideoStorageService(storage: widget.storage);
+    _storageService = widget.storageService;
     _initializeVideo();
   }
 
@@ -68,6 +75,17 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
           _isInitialized = true;
           _isLoading = false;
           _isPlaying = true;
+          
+          // Create initial segment
+          if (_segments.isEmpty) {
+            _segments.add(VideoSegment(
+              id: DateTime.now().toString(),
+              startTime: 0,
+              endTime: _videoController.value.duration.inSeconds.toDouble(),
+              originalVideoPath: widget.videoPath,
+            ));
+            _activeSegmentIndex = 0;
+          }
         });
       }
 
@@ -100,10 +118,15 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
       });
     }
 
-    // Loop video when it reaches the end
-    if (_videoController.value.position >= _videoController.value.duration) {
-      _videoController.seekTo(Duration.zero);
-      _videoController.play();
+    // Check if we need to loop within segment boundaries
+    if (_activeSegmentIndex >= 0 && _activeSegmentIndex < _segments.length) {
+      final selectedSegment = _segments[_activeSegmentIndex];
+      final position = _videoController.value.position.inSeconds.toDouble();
+      
+      // If position is outside segment bounds, seek back to start
+      if (position < selectedSegment.startTime || position > selectedSegment.endTime) {
+        _videoController.seekTo(Duration(seconds: selectedSegment.startTime.toInt()));
+      }
     }
   }
 
@@ -234,12 +257,55 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
     }
   }
 
-  Future<void> _togglePlayPause() async {
+  void _togglePlayPause() {
     if (_videoController.value.isPlaying) {
-      await _videoController.pause();
+      _videoController.pause();
     } else {
-      await _videoController.play();
+      _videoController.play();
     }
+  }
+
+  void _addSegment() {
+    if (_segments.isEmpty) return;
+    
+    final lastSegment = _segments.last;
+    final midPoint = (lastSegment.startTime + lastSegment.endTime) / 2;
+    
+    setState(() {
+      // Split the last segment in half
+      _segments.last = lastSegment.copyWith(endTime: midPoint);
+      _segments.add(VideoSegment(
+        id: DateTime.now().toString(),
+        startTime: midPoint,
+        endTime: lastSegment.endTime,
+        originalVideoPath: widget.videoPath,
+      ));
+      _activeSegmentIndex = _segments.length - 1;
+    });
+  }
+
+  void _onSegmentChanged(VideoSegment updatedSegment) {
+    setState(() {
+      _segments[_activeSegmentIndex] = updatedSegment;
+    });
+  }
+
+  void _deleteSegment(int index) {
+    setState(() {
+      _segments.removeAt(index);
+      if (_activeSegmentIndex >= _segments.length) {
+        _activeSegmentIndex = _segments.length - 1;
+      }
+    });
+  }
+
+  void _previewSegment(int index) {
+    setState(() {
+      _activeSegmentIndex = index;
+    });
+    final segment = _segments[index];
+    _videoController.seekTo(Duration(seconds: segment.startTime.toInt()));
+    _videoController.play();
   }
 
   Future<void> _uploadVideo() async {
@@ -255,6 +321,8 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
       final userId = widget.auth.currentUser?.uid;
       if (userId == null) throw Exception('User not logged in');
 
+      // TODO: Process segments if needed before upload
+      
       await _storageService.uploadVideo(
         videoFile,
         userId,
@@ -294,17 +362,52 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isInitialized || _error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Edit Video')),
+        body: Center(
+          child: _error != null
+              ? Text(_error!, style: const TextStyle(color: Colors.red))
+              : const CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Edit Video')),
       body: Column(
         children: [
-          if (_isInitialized) ...[
-            AspectRatio(
-              aspectRatio: _videoController.value.aspectRatio,
-              child: VideoPlayer(_videoController),
+          // Playlist name input
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              decoration: const InputDecoration(
+                labelText: 'Video Title',
+                border: OutlineInputBorder(),
+              ),
             ),
-            const SizedBox(height: 16),
-            Row(
+          ),
+
+          // Video preview in a card
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0),
+            elevation: 4,
+            clipBehavior: Clip.antiAlias,
+            child: Container(
+              height: MediaQuery.of(context).size.height * 0.5, // 50% of screen height
+              alignment: Alignment.center,
+              color: Colors.black,
+              child: AspectRatio(
+                aspectRatio: _videoController.value.aspectRatio,
+                child: VideoPlayer(_videoController),
+              ),
+            ),
+          ),
+
+          // Playback controls
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
@@ -313,21 +416,28 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
                 ),
               ],
             ),
-            if (_uploadProgress > 0 && _uploadProgress < 1) ...[
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: [
-                    LinearProgressIndicator(value: _uploadProgress),
-                    const SizedBox(height: 8),
-                    Text('${(_uploadProgress * 100).toStringAsFixed(1)}%'),
-                  ],
-                ),
+          ),
+
+          // Upload progress
+          if (_uploadProgress > 0 && _uploadProgress < 1) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  LinearProgressIndicator(value: _uploadProgress),
+                  const SizedBox(height: 8),
+                  Text('${(_uploadProgress * 100).toStringAsFixed(1)}%'),
+                ],
               ),
-            ],
-            const SizedBox(height: 16),
-            Row(
+            ),
+          ],
+
+          const Spacer(),
+
+          // Bottom controls
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ElevatedButton(
@@ -338,28 +448,9 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
                   onPressed: _isLoading ? null : _uploadVideo,
                   child: const Text('Upload'),
                 ),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
               ],
             ),
-          ] else if (_error != null) ...[
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: Colors.red),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-          ] else ...[
-            const Center(
-              child: CircularProgressIndicator(),
-            ),
-          ],
+          ),
         ],
       ),
     );

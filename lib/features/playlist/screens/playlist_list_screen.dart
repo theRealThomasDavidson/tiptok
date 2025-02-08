@@ -22,6 +22,8 @@ class PlaylistListScreen extends StatefulWidget {
 }
 
 class _PlaylistListScreenState extends State<PlaylistListScreen> {
+  List<PlaylistModel> _playlists = [];
+
   Future<void> _navigateToCreatePlaylist() async {
     final result = await Navigator.push<bool>(
       context,
@@ -77,80 +79,10 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
       body: StreamBuilder<List<PlaylistModel>>(
         stream: widget.playlistService.getUserPlaylists(userId),
         builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    color: Colors.red,
-                    size: 48,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error: ${snapshot.error}',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {});  // Retry loading
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
+          if (snapshot.hasData && !snapshot.hasError) {
+            _playlists = snapshot.data!;
           }
-
-          if (!snapshot.hasData) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: CircularProgressIndicator(),
-                  ),
-                  SizedBox(height: 16),
-                  Text('Loading playlists...'),
-                ],
-              ),
-            );
-          }
-
-          final playlists = snapshot.data!;
-          if (playlists.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.playlist_add,
-                    size: 64,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No playlists yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _navigateToCreatePlaylist,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create Playlist'),
-                  ),
-                ],
-              ),
-            );
-          }
-
+          
           return GridView.builder(
             padding: const EdgeInsets.all(16),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -159,9 +91,9 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
             ),
-            itemCount: playlists.length,
+            itemCount: _playlists.length,
             itemBuilder: (context, index) {
-              final playlist = playlists[index];
+              final playlist = _playlists[index];
               return _PlaylistCard(playlist: playlist);
             },
           );
