@@ -18,6 +18,12 @@ late final String FIREBASE_AUTH_DOMAIN;
 
 Future<void> initializeFirebase() async {
   try {
+    // Check if Firebase is already initialized
+    if (Firebase.apps.isNotEmpty) {
+      debugPrint('Firebase is already initialized');
+      return;
+    }
+
     // Initialize Firebase Core first
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
