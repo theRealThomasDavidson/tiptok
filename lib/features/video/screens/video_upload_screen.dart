@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import '../screens/video_edit_screen.dart';
+import 'video_edit_screen.dart';
+import 'camera_screen.dart';
 
 class VideoUploadScreen extends StatefulWidget {
   const VideoUploadScreen({super.key});
@@ -29,7 +30,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     return null;
   }
 
-  Future<void> _pickAndPreviewVideo() async {
+  Future<void> _pickAndEditVideo() async {
     if (!mounted) return;
     
     final file = await _pickVideoWithFilters();
@@ -47,27 +48,77 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     }
   }
 
+  void _navigateToCamera() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const CameraScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Upload Video'),
+        title: const Text('Create Video Playlist'),
       ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const Icon(
+              Icons.video_library,
+              size: 64,
+              color: Colors.blue,
+            ),
+            const SizedBox(height: 24),
             const Text(
-              'Maximum video duration: 60 seconds',
+              'Create a new video playlist',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Select a video to split into segments\nor record a new one',
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey,
               ),
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _pickAndPreviewVideo,
-              child: const Text('Select Video'),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _pickAndEditVideo,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('Select Video'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: _navigateToCamera,
+                  icon: const Icon(Icons.videocam),
+                  label: const Text('Record Video'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
