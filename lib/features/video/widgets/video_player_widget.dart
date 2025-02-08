@@ -1,140 +1,124 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
-import 'dart:io';
 
 class VideoPlayerWidget extends StatefulWidget {
-  final String? videoPath;
-  final String? videoUrl;
-  
+  final String videoUrl;
+
   const VideoPlayerWidget({
     super.key,
-    this.videoPath,
-    this.videoUrl,
-  }) : assert(videoPath != null || videoUrl != null, 'Either videoPath or videoUrl must be provided');
+    required this.videoUrl,
+  });
 
   @override
   State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
 }
 
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
-  late VideoPlayerController _controller;
+  VideoPlayerController? _controller;
   bool _isInitialized = false;
-  bool _isShowingEndIndicator = false;
+  bool _hasError = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _controller = widget.videoPath != null
-        ? VideoPlayerController.file(File(widget.videoPath!))
-        : VideoPlayerController.network(widget.videoUrl!)
-      ..initialize().then((_) {
-        setState(() {
-          _isInitialized = true;
-        });
-        _controller.play();
-        _setupVideoLoop();
-      });
+    _initializeVideo();
   }
 
-  void _setupVideoLoop() {
-    _controller.addListener(() {
-      if (_controller.value.position >= _controller.value.duration) {
+  Future<void> _initializeVideo() async {
+    try {
+      final controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      _controller = controller;
+
+      await controller.initialize();
+      await controller.setLooping(true);
+      await controller.play();
+
+      if (mounted) {
         setState(() {
-          _isShowingEndIndicator = true;
-        });
-        
-        // Pause at the end
-        _controller.pause();
-        
-        // Wait for 500ms, then restart
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) {
-            setState(() {
-              _isShowingEndIndicator = false;
-            });
-            _controller.seekTo(Duration.zero);
-            _controller.play();
-          }
+          _isInitialized = true;
+          _hasError = false;
+          _errorMessage = null;
         });
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _errorMessage = 'This video is no longer available';
+          _isInitialized = false;
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isInitialized) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _controller.value.isPlaying
-              ? _controller.pause()
-              : _controller.play();
-        });
-      },
-      child: Container(
-        color: Colors.black,
+    if (_hasError) {
+      return Container(
+        color: Colors.black87,
         child: Center(
-          child: AspectRatio(
-            aspectRatio: _controller.value.aspectRatio,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                VideoPlayer(_controller),
-                // Play/Pause indicator
-                AnimatedOpacity(
-                  opacity: _controller.value.isPlaying ? 0.0 : 1.0,
-                  duration: const Duration(milliseconds: 300),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.4),
-                    ),
-                    child: const Icon(
-                      Icons.play_arrow,
-                      size: 80,
-                      color: Colors.white,
-                    ),
-                  ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.white70,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage ?? 'Error playing video',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 16,
                 ),
-                // End of video indicator
-                AnimatedOpacity(
-                  opacity: _isShowingEndIndicator ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.replay, color: Colors.white, size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Restarting...',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
-      ),
+      );
+    }
+
+    if (!_isInitialized) {
+      return Container(
+        color: Colors.black,
+        child: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          ),
+        ),
+      );
+    }
+
+    // Get the screen size
+    final size = MediaQuery.of(context).size;
+    final videoSize = _controller!.value.size;
+    
+    // Calculate the aspect ratio
+    final aspectRatio = videoSize.width / videoSize.height;
+    
+    // Calculate the video dimensions to fit the screen while maintaining aspect ratio
+    double width = size.width;
+    double height = size.width / aspectRatio;
+    
+    // If the height would be greater than the screen height, scale it down
+    if (height > size.height) {
+      height = size.height;
+      width = height * aspectRatio;
+    }
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: VideoPlayer(_controller!),
     );
   }
 } 

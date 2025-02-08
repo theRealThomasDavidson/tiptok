@@ -21,8 +21,11 @@ class _SignInScreenState extends State<SignInScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isPhoneMode = false;
+  bool _isVerificationSent = false;
+  String? _verificationId;
 
-  void _showLoadingOverlay() {
+  void _showLoadingOverlay({String message = 'Loading...'}) {
     setState(() {
       _isLoading = true;
     });
@@ -31,16 +34,16 @@ class _SignInScreenState extends State<SignInScreen> {
       barrierDismissible: false,
       builder: (context) => WillPopScope(
         onWillPop: () async => false,
-        child: const Center(
+        child: Center(
           child: Card(
             child: Padding(
-              padding: EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Signing in with GitHub...'),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(message),
                 ],
               ),
             ),
@@ -62,6 +65,28 @@ class _SignInScreenState extends State<SignInScreen> {
   Future<void> _signIn() async {
     if (_emailController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_isPhoneMode ? 'Please enter a phone number' : 'Please enter an email')),
+      );
+      return;
+    }
+
+    if (!_isPhoneMode && _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a password')),
+      );
+      return;
+    }
+
+    if (_isPhoneMode) {
+      await _signInWithPhone();
+    } else {
+      await _signInWithEmail();
+    }
+  }
+
+  Future<void> _signInWithEmail() async {
+    if (_emailController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter an email')),
       );
       return;
@@ -73,6 +98,10 @@ class _SignInScreenState extends State<SignInScreen> {
       );
       return;
     }
+
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
       await widget.auth.signInWithEmailAndPassword(
@@ -101,16 +130,207 @@ class _SignInScreenState extends State<SignInScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _signInWithPhone() async {
+    if (!_isVerificationSent) {
+      if (_emailController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a phone number')),
+        );
+        return;
+      }
+
+      _showLoadingOverlay(message: 'Verifying phone number...');
+
+      try {
+        await widget.auth.verifyPhoneNumber(
+          phoneNumber: _emailController.text,
+          verificationCompleted: (PhoneAuthCredential credential) async {
+            _hideLoadingOverlay();
+            _showLoadingOverlay(message: 'Signing in...');
+            try {
+              await widget.auth.signInWithCredential(credential);
+              if (context.mounted) {
+                _hideLoadingOverlay();
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            } catch (e) {
+              if (context.mounted) {
+                _hideLoadingOverlay();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: ${e.toString()}')),
+                );
+              }
+            }
+          },
+          verificationFailed: (FirebaseAuthException e) {
+            _hideLoadingOverlay();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(e.message ?? 'Invalid phone number')),
+            );
+          },
+          codeSent: (String verificationId, int? resendToken) {
+            _hideLoadingOverlay();
+            setState(() {
+              _verificationId = verificationId;
+              _isVerificationSent = true;
+            });
+          },
+          codeAutoRetrievalTimeout: (String verificationId) {
+            _hideLoadingOverlay();
+          },
+        );
+      } catch (e) {
+        _hideLoadingOverlay();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    } else {
+      if (_passwordController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter the verification code')),
+        );
+        return;
+      }
+
+      _showLoadingOverlay(message: 'Verifying code...');
+
+      try {
+        final credential = PhoneAuthProvider.credential(
+          verificationId: _verificationId!,
+          smsCode: _passwordController.text,
+        );
+        await widget.auth.signInWithCredential(credential);
+        
+        if (context.mounted) {
+          _hideLoadingOverlay();
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+      } on FirebaseAuthException catch (e) {
+        _hideLoadingOverlay();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message ?? 'Invalid verification code')),
+        );
+      } catch (e) {
+        _hideLoadingOverlay();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
     }
   }
 
   Future<void> _signInWithGitHub() async {
-    _showLoadingOverlay();
+    _showLoadingOverlay(message: 'Signing in...');
 
     try {
       final githubProvider = GithubAuthProvider();
-      // Add a timeout to prevent indefinite waiting
-      final userCredential = await widget.auth.signInWithProvider(githubProvider)
+      githubProvider.addScope('read:user');
+      githubProvider.addScope('user:email');
+
+      // First attempt sign in
+      try {
+        await widget.auth.signInWithProvider(githubProvider)
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () => throw TimeoutException('Sign in timed out'),
+            );
+        
+        if (context.mounted) {
+          _hideLoadingOverlay();
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+        return;
+      } on FirebaseAuthException catch (e) {
+        // If user doesn't exist, proceed with sign up
+        if (e.code == 'user-not-found') {
+          if (context.mounted) {
+            _showLoadingOverlay(message: 'Creating account...');
+          }
+          
+          // Try sign up
+          final userCredential = await widget.auth.signInWithProvider(githubProvider);
+          
+          // Update display name if not set
+          if (userCredential.user?.displayName == null) {
+            await userCredential.user?.updateDisplayName(
+              userCredential.user?.email?.split('@')[0] ?? 'GitHub User'
+            );
+          }
+
+          if (context.mounted) {
+            _hideLoadingOverlay();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Account created successfully'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+            Navigator.pushReplacementNamed(context, '/home');
+          }
+          return;
+        }
+        rethrow;
+      }
+    } on TimeoutException {
+      if (context.mounted) {
+        _hideLoadingOverlay();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sign in timed out. Please try again.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'operation-not-allowed':
+          message = 'GitHub sign in is not enabled';
+          break;
+        case 'account-exists-with-different-credential':
+          message = 'An account already exists with this email';
+          break;
+        default:
+          message = e.message ?? 'An error occurred';
+      }
+      if (context.mounted) {
+        _hideLoadingOverlay();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        _hideLoadingOverlay();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An unexpected error occurred: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    _showLoadingOverlay(message: 'Signing in with Google...');
+
+    try {
+      final googleProvider = GoogleAuthProvider();
+      await widget.auth.signInWithProvider(googleProvider)
           .timeout(
             const Duration(seconds: 30),
             onTimeout: () => throw TimeoutException('Sign in timed out'),
@@ -134,7 +354,7 @@ class _SignInScreenState extends State<SignInScreen> {
       String message;
       switch (e.code) {
         case 'operation-not-allowed':
-          message = 'GitHub sign in is not enabled';
+          message = 'Google sign in is not enabled';
           break;
         case 'account-exists-with-different-credential':
           message = 'An account already exists with this email';
@@ -209,69 +429,59 @@ class _SignInScreenState extends State<SignInScreen> {
               ),
               const SizedBox(height: 32),
               TextField(
-                key: const Key('email'),
+                key: ValueKey(_isPhoneMode ? 'phone' : 'email'),
                 controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(
+                decoration: InputDecoration(
+                  labelText: _isPhoneMode ? 'Phone Number' : 'Email',
+                  border: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(12)),
                   ),
-                  enabledBorder: OutlineInputBorder(
+                  enabledBorder: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(12)),
                     borderSide: BorderSide(color: Colors.blue),
                   ),
-                  focusedBorder: OutlineInputBorder(
+                  focusedBorder: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(12)),
                     borderSide: BorderSide(color: Colors.blue, width: 2),
                   ),
                 ),
-                keyboardType: TextInputType.emailAddress,
+                keyboardType: _isPhoneMode ? TextInputType.phone : TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
-              TextField(
-                key: const Key('password'),
-                controller: _passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(12)),
+              if (!_isPhoneMode || _isVerificationSent)
+                TextField(
+                  key: ValueKey(_isPhoneMode ? 'verification-code' : 'password'),
+                  controller: _passwordController,
+                  decoration: InputDecoration(
+                    labelText: _isPhoneMode ? 'Verification Code' : 'Password',
+                    border: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                    enabledBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                      borderSide: BorderSide(color: Colors.blue),
+                    ),
+                    focusedBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                      borderSide: BorderSide(color: Colors.blue, width: 2),
+                    ),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(12)),
-                    borderSide: BorderSide(color: Colors.blue),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(12)),
-                    borderSide: BorderSide(color: Colors.blue, width: 2),
-                  ),
+                  obscureText: !_isPhoneMode,
                 ),
-                obscureText: true,
-              ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                height: 50,
                 child: ElevatedButton(
                   onPressed: _signIn,
                   style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
                   ),
-                  child: const Text(
-                    'Sign In',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Or continue with',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 14,
+                  child: Text(_isPhoneMode
+                      ? (_isVerificationSent ? 'Verify' : 'Send Code')
+                      : 'Sign In'),
                 ),
               ),
               const SizedBox(height: 16),
@@ -279,30 +489,32 @@ class _SignInScreenState extends State<SignInScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _signInWithGitHub,
-                    icon: _isLoading 
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Icon(Icons.code, color: Colors.white),
-                    label: Text(
-                      _isLoading ? 'Signing in...' : 'GitHub',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
+                    onPressed: _signInWithGitHub,
+                    icon: const Icon(Icons.code),
+                    label: const Text('GitHub'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 16),
+                  OutlinedButton.icon(
+                    key: const Key('google-signin'),
+                    onPressed: _signInWithGoogle,
+                    icon: const Icon(Icons.g_translate),
+                    label: const Text('Google'),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      backgroundColor: Colors.blue,
-                      side: BorderSide.none,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
@@ -311,18 +523,37 @@ class _SignInScreenState extends State<SignInScreen> {
               const SizedBox(height: 16),
               TextButton(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => SignUpScreen()),
-                  );
+                  setState(() {
+                    _isPhoneMode = !_isPhoneMode;
+                    _isVerificationSent = false;
+                    _verificationId = null;
+                    _emailController.clear();
+                    _passwordController.clear();
+                  });
                 },
-                child: const Text(
-                  'Don\'t have an account? Sign Up',
-                  style: TextStyle(
-                    color: Colors.blue,
-                    fontSize: 14,
+                child: Text(_isPhoneMode
+                    ? 'Use Email Instead'
+                    : 'Use Phone Number Instead'),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text("Don't have an account? "),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SignUpScreen(
+                            auth: widget.auth,
+                          ),
+                        ),
+                      );
+                    },
+                    child: const Text('Sign Up'),
                   ),
-                ),
+                ],
               ),
             ],
           ),

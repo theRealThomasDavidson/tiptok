@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -14,42 +16,61 @@ late final String FIREBASE_PROJECT_ID;
 late final String FIREBASE_STORAGE_BUCKET;
 late final String FIREBASE_AUTH_DOMAIN;
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Load .env first
-  await dotenv.load(fileName: ".env");
-  
-  // Then access env variables
-  FIREBASE_API_KEY = dotenv.env['FIREBASE_API_KEY']!;
-  FIREBASE_APP_ID = dotenv.env['FIREBASE_APP_ID']!;
-  FIREBASE_MESSAGING_SENDER_ID = dotenv.env['FIREBASE_MESSAGING_SENDER_ID']!;
-  FIREBASE_PROJECT_ID = dotenv.env['FIREBASE_PROJECT_ID']!;
-  FIREBASE_STORAGE_BUCKET = dotenv.env['FIREBASE_STORAGE_BUCKET']!;
-  FIREBASE_AUTH_DOMAIN = dotenv.env['FIREBASE_AUTH_DOMAIN']!;
+Future<void> initializeFirebase() async {
+  try {
+    // Check if Firebase is already initialized
+    if (Firebase.apps.isEmpty) {
+      // Initialize Firebase Core first
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      debugPrint('Firebase Core initialized');
 
-  // Initialize Firebase first
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+      // Wait a bit to ensure core initialization is complete
+      await Future.delayed(const Duration(milliseconds: 500));
 
-  runApp(const MyApp());
+      // Initialize Firestore with settings
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+      debugPrint('Firestore settings configured');
 
-  // Initialize App Check after the app starts
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    try {
+      // Test Firestore connection
+      await FirebaseFirestore.instance.collection('test').doc('test').get()
+          .timeout(
+            const Duration(seconds: 5),
+            onTimeout: () => throw TimeoutException('Firestore connection test timed out'),
+          );
+      debugPrint('Firestore connection test successful');
+
+      // Initialize App Check last
       await FirebaseAppCheck.instance.activate(
         androidProvider: AndroidProvider.debug,
       );
+      debugPrint('Firebase App Check activated');
 
-      final token = await FirebaseAppCheck.instance.getToken();
-      debugPrint('App Check Debug Token: $token');
-      
-      debugPrint('Firebase App Check initialized successfully');
-    } catch (e) {
-      debugPrint('Error initializing App Check: $e');
+      debugPrint('All Firebase services initialized successfully');
+    } else {
+      debugPrint('Firebase already initialized');
     }
-  });
+  } catch (e, stackTrace) {
+    debugPrint('Error during Firebase initialization: $e');
+    debugPrint('Stack trace: $stackTrace');
+    rethrow;
+  }
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    await initializeFirebase();
+  } catch (e) {
+    debugPrint('Failed to initialize Firebase: $e');
+  }
+
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -59,7 +80,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'TikTok Clone - Hot Reload Test',
+      title: 'TipTok',
       theme: ThemeData(
         // This is the theme of your application.
         //

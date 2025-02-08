@@ -23,5 +23,16 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && 
         get(/databases/$(database)/documents/comments/$(commentId)).data.userId == request.auth.uid;
     }
+
+    // Playlist rules
+    match /playlists/{playlistId} {
+      allow read: if 
+        resource.data.privacy == 'public' || 
+        (request.auth != null && resource.data.userId == request.auth.uid) ||
+        (resource.data.privacy == 'unlisted' && request.auth != null);
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+    }
   }
 }

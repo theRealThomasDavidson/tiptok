@@ -8,7 +8,12 @@ typedef Callback = void Function(MethodCall call);
 void setupFirebaseCoreMocks() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  MethodChannelFirebase.channel.setMockMethodCallHandler((call) async {
+  // Create a mock platform channel
+  const MethodChannel channel = MethodChannel('plugins.flutter.io/firebase_core');
+  
+  // Register the mock handler
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(channel, (call) async {
     if (call.method == 'Firebase#initializeCore') {
       return [
         {

@@ -7,7 +7,12 @@ import '../../home/screens/home_screen.dart';
 final FIREBASE_ANDROID_CLIENT_ID = '606703658209-android';
 
 class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({super.key});
+  final FirebaseAuth auth;
+
+  SignUpScreen({
+    super.key,
+    FirebaseAuth? auth,
+  }) : auth = auth ?? FirebaseAuth.instance;
 
   @override
   State<SignUpScreen> createState() => _SignUpScreenState();
@@ -368,25 +373,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
       debugPrint('Creating user with email/password...');
-      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      await widget.auth.createUserWithEmailAndPassword(
         email: _emailController.text,
         password: _passwordController.text,
       );
-
-      debugPrint('Updating display name...');
-      await userCredential.user?.updateDisplayName(_displayNameController.text);
-      debugPrint('User created successfully: ${userCredential.user?.email}');
-
+      
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Account created successfully')),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
+        Navigator.pushReplacementNamed(context, '/home');
       }
     } on FirebaseAuthException catch (e) {
       debugPrint('Firebase Auth Error: ${e.code} - ${e.message}');
