@@ -302,34 +302,46 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
             ),
           ),
           
-          // Video preview
-          AspectRatio(
-            aspectRatio: _controller.value.aspectRatio,
-            child: VideoPlayer(_controller),
+          // Video preview in a card
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0),
+            elevation: 4,
+            clipBehavior: Clip.antiAlias,
+            child: Container(
+              height: MediaQuery.of(context).size.height * 0.4, // 40% of screen height
+              alignment: Alignment.center,
+              color: Colors.black,
+              child: AspectRatio(
+                aspectRatio: _controller.value.aspectRatio,
+                child: VideoPlayer(_controller),
+              ),
+            ),
           ),
 
           // Playback controls
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                icon: Icon(_controller.value.isPlaying ? Icons.pause : Icons.play_arrow),
-                onPressed: () {
-                  setState(() {
-                    if (_controller.value.isPlaying) {
-                      _controller.pause();
-                    } else {
-                      _controller.play();
-                    }
-                  });
-                },
-              ),
-            ],
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: Icon(_controller.value.isPlaying ? Icons.pause : Icons.play_arrow),
+                  onPressed: () {
+                    setState(() {
+                      if (_controller.value.isPlaying) {
+                        _controller.pause();
+                      } else {
+                        _controller.play();
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
 
           // Upload progress
           if (_isProcessing) ...[
-            const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
