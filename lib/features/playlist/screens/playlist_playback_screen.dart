@@ -118,19 +118,24 @@ class _PlaylistPlaybackScreenState extends State<PlaylistPlaybackScreen> {
                       children: [
                         // Video Player with PageView for swipe navigation
                         Expanded(
-                          child: PageView.builder(
-                            controller: _pageController,
-                            onPageChanged: (index) {
-                              setState(() {
-                                _currentIndex = index;
-                              });
-                            },
-                            itemCount: _videos!.length,
-                            itemBuilder: (context, index) {
-                              return VideoPlayerWidget(
-                                videoUrl: _videos![index].url,
-                              );
-                            },
+                          child: Container(
+                            color: Colors.black,
+                            child: PageView.builder(
+                              controller: _pageController,
+                              onPageChanged: (index) {
+                                setState(() {
+                                  _currentIndex = index;
+                                });
+                              },
+                              itemCount: _videos!.length,
+                              itemBuilder: (context, index) {
+                                return Center(
+                                  child: VideoPlayerWidget(
+                                    videoUrl: _videos![index].url,
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ),
                         // Playlist Controls

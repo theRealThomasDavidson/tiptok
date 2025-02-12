@@ -11,6 +11,20 @@ class PlaylistService {
   CollectionReference<Map<String, dynamic>> get _playlists => 
       _firestore.collection('playlists');
 
+  // Get a playlist by ID
+  Future<PlaylistModel?> getPlaylist(String playlistId) async {
+    try {
+      final doc = await _playlists.doc(playlistId).get();
+      if (!doc.exists) return null;
+      return PlaylistModel.fromFirestore(doc);
+    } catch (e) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        message: 'Error fetching playlist: ${e.toString()}',
+      );
+    }
+  }
+
   // Create a new playlist
   Future<PlaylistModel> createPlaylist({
     required String userId,
@@ -44,20 +58,6 @@ class PlaylistService {
       throw FirebaseException(
         plugin: 'cloud_firestore',
         message: 'Error creating playlist: ${e.toString()}',
-      );
-    }
-  }
-
-  // Get a playlist by ID
-  Future<PlaylistModel?> getPlaylist(String playlistId) async {
-    try {
-      final doc = await _playlists.doc(playlistId).get();
-      if (!doc.exists) return null;
-      return PlaylistModel.fromFirestore(doc);
-    } catch (e) {
-      throw FirebaseException(
-        plugin: 'cloud_firestore',
-        message: 'Error fetching playlist: ${e.toString()}',
       );
     }
   }
@@ -117,11 +117,22 @@ class PlaylistService {
   // Add video to playlist
   Future<void> addVideoToPlaylist(String playlistId, String videoId) async {
     try {
-      await _playlists.doc(playlistId).update({
-        'videoIds': FieldValue.arrayUnion([videoId]),
-        'videoCount': FieldValue.increment(1),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      // First get the current playlist to ensure we have the latest videoIds
+      final doc = await _playlists.doc(playlistId).get();
+      if (!doc.exists) throw Exception('Playlist not found');
+      
+      final data = doc.data() as Map<String, dynamic>;
+      final currentVideoIds = List<String>.from(data['videoIds'] ?? []);
+      
+      // Only add if not already present
+      if (!currentVideoIds.contains(videoId)) {
+        currentVideoIds.add(videoId);
+        await _playlists.doc(playlistId).update({
+          'videoIds': currentVideoIds,
+          'videoCount': currentVideoIds.length,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
     } catch (e) {
       throw FirebaseException(
         plugin: 'cloud_firestore',
@@ -133,11 +144,22 @@ class PlaylistService {
   // Remove video from playlist
   Future<void> removeVideoFromPlaylist(String playlistId, String videoId) async {
     try {
-      await _playlists.doc(playlistId).update({
-        'videoIds': FieldValue.arrayRemove([videoId]),
-        'videoCount': FieldValue.increment(-1),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      // First get the current playlist to ensure we have the latest videoIds
+      final doc = await _playlists.doc(playlistId).get();
+      if (!doc.exists) throw Exception('Playlist not found');
+      
+      final data = doc.data() as Map<String, dynamic>;
+      final currentVideoIds = List<String>.from(data['videoIds'] ?? []);
+      
+      // Only remove if present
+      if (currentVideoIds.contains(videoId)) {
+        currentVideoIds.remove(videoId);
+        await _playlists.doc(playlistId).update({
+          'videoIds': currentVideoIds,
+          'videoCount': currentVideoIds.length,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
     } catch (e) {
       throw FirebaseException(
         plugin: 'cloud_firestore',
@@ -166,6 +188,7 @@ class PlaylistService {
     try {
       await _playlists.doc(playlistId).update({
         'videoIds': newVideoOrder,
+        'videoCount': newVideoOrder.length,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {

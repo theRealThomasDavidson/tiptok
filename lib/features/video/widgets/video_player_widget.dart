@@ -3,21 +3,22 @@ import 'package:video_player/video_player.dart';
 
 class VideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
+  final Function(double)? onAspectRatioUpdated;
 
   const VideoPlayerWidget({
-    super.key,
+    Key? key,
     required this.videoUrl,
-  });
+    this.onAspectRatioUpdated,
+  }) : super(key: key);
 
   @override
   State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
 }
 
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
-  VideoPlayerController? _controller;
+  late VideoPlayerController _controller;
   bool _isInitialized = false;
-  bool _hasError = false;
-  String? _errorMessage;
+  bool _isPlaying = false;
 
   @override
   void initState() {
@@ -26,99 +27,70 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   }
 
   Future<void> _initializeVideo() async {
+    _controller = VideoPlayerController.network(widget.videoUrl);
     try {
-      final controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
-      _controller = controller;
-
-      await controller.initialize();
-      await controller.setLooping(true);
-      await controller.play();
-
+      await _controller.initialize();
       if (mounted) {
         setState(() {
           _isInitialized = true;
-          _hasError = false;
-          _errorMessage = null;
         });
+        // Notify parent of the actual video aspect ratio
+        widget.onAspectRatioUpdated?.call(_controller.value.aspectRatio);
       }
+      _controller.addListener(_videoListener);
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _hasError = true;
-          _errorMessage = 'This video is no longer available';
-          _isInitialized = false;
-        });
-      }
+      print('Error initializing video: $e');
+    }
+  }
+
+  void _videoListener() {
+    final isPlaying = _controller.value.isPlaying;
+    if (isPlaying != _isPlaying && mounted) {
+      setState(() {
+        _isPlaying = isPlaying;
+      });
     }
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _controller.removeListener(_videoListener);
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_hasError) {
-      return Container(
-        color: Colors.black87,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.error_outline,
-                color: Colors.white70,
-                size: 48,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage ?? 'Error playing video',
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     if (!_isInitialized) {
-      return Container(
-        color: Colors.black,
-        child: const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-          ),
-        ),
+      return const Center(
+        child: CircularProgressIndicator(),
       );
     }
 
-    // Get the screen size
-    final size = MediaQuery.of(context).size;
-    final videoSize = _controller!.value.size;
-    
-    // Calculate the aspect ratio
-    final aspectRatio = videoSize.width / videoSize.height;
-    
-    // Calculate the video dimensions to fit the screen while maintaining aspect ratio
-    double width = size.width;
-    double height = size.width / aspectRatio;
-    
-    // If the height would be greater than the screen height, scale it down
-    if (height > size.height) {
-      height = size.height;
-      width = height * aspectRatio;
-    }
-
-    return SizedBox(
-      width: width,
-      height: height,
-      child: VideoPlayer(_controller!),
+    return AspectRatio(
+      aspectRatio: _controller.value.aspectRatio,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          VideoPlayer(_controller),
+          // Play/Pause button overlay
+          if (!_isPlaying)
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(
+                  Icons.play_arrow,
+                  size: 50,
+                  color: Colors.white,
+                ),
+                onPressed: () => _controller.play(),
+              ),
+            ),
+        ],
+      ),
     );
   }
 } 
