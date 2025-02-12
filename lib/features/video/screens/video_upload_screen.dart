@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'video_segment_playlist_editor_screen.dart';
+import '../screens/video_edit_screen.dart';
 
 class VideoUploadScreen extends StatefulWidget {
   const VideoUploadScreen({super.key});
@@ -33,17 +34,50 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
     if (!mounted) return;
     
     final file = await _pickVideoWithFilters();
-    if (file != null) {
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => VideoSegmentPlaylistEditorScreen(
-              videoPath: file.path,
-            ),
+    if (file != null && mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Choose Edit Mode'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.video_library),
+                title: const Text('Create Playlist'),
+                subtitle: const Text('Split video into segments'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => VideoSegmentPlaylistEditorScreen(
+                        videoPath: file.path,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Simple Edit'),
+                subtitle: const Text('Trim and upload'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => VideoEditScreen(
+                        videoPath: file.path,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-        );
-      }
+        ),
+      );
     }
   }
 
@@ -51,7 +85,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Video Playlist'),
+        title: const Text('Upload Video'),
       ),
       body: Center(
         child: Column(
@@ -64,7 +98,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
             ),
             const SizedBox(height: 24),
             const Text(
-              'Create a new video playlist',
+              'Create Video Content',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -72,7 +106,7 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
             ),
             const SizedBox(height: 16),
             const Text(
-              'Select a video to split into segments\nand create a playlist',
+              'Maximum video duration: 60 seconds\nCreate a simple video or split into segments',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
