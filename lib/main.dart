@@ -19,41 +19,42 @@ late final String FIREBASE_AUTH_DOMAIN;
 Future<void> initializeFirebase() async {
   try {
     // Check if Firebase is already initialized
-    if (Firebase.apps.isEmpty) {
-      // Initialize Firebase Core first
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-      debugPrint('Firebase Core initialized');
-
-      // Wait a bit to ensure core initialization is complete
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Initialize Firestore with settings
-      FirebaseFirestore.instance.settings = const Settings(
-        persistenceEnabled: true,
-        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-      );
-      debugPrint('Firestore settings configured');
-
-      // Test Firestore connection
-      await FirebaseFirestore.instance.collection('test').doc('test').get()
-          .timeout(
-            const Duration(seconds: 5),
-            onTimeout: () => throw TimeoutException('Firestore connection test timed out'),
-          );
-      debugPrint('Firestore connection test successful');
-
-      // Initialize App Check last
-      await FirebaseAppCheck.instance.activate(
-        androidProvider: AndroidProvider.debug,
-      );
-      debugPrint('Firebase App Check activated');
-
-      debugPrint('All Firebase services initialized successfully');
-    } else {
-      debugPrint('Firebase already initialized');
+    if (Firebase.apps.isNotEmpty) {
+      debugPrint('Firebase is already initialized');
+      return;
     }
+
+    // Initialize Firebase Core first
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint('Firebase Core initialized');
+
+    // Wait a bit to ensure core initialization is complete
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Initialize Firestore with settings
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    debugPrint('Firestore settings configured');
+
+    // Test Firestore connection
+    await FirebaseFirestore.instance.collection('test').doc('test').get()
+        .timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => throw TimeoutException('Firestore connection test timed out'),
+        );
+    debugPrint('Firestore connection test successful');
+
+    // Initialize App Check last
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.debug,
+    );
+    debugPrint('Firebase App Check activated');
+
+    debugPrint('All Firebase services initialized successfully');
   } catch (e, stackTrace) {
     debugPrint('Error during Firebase initialization: $e');
     debugPrint('Stack trace: $stackTrace');
