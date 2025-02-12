@@ -77,80 +77,8 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
       body: StreamBuilder<List<PlaylistModel>>(
         stream: widget.playlistService.getUserPlaylists(userId),
         builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    color: Colors.red,
-                    size: 48,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error: ${snapshot.error}',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {});  // Retry loading
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          if (!snapshot.hasData) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: CircularProgressIndicator(),
-                  ),
-                  SizedBox(height: 16),
-                  Text('Loading playlists...'),
-                ],
-              ),
-            );
-          }
-
-          final playlists = snapshot.data!;
-          if (playlists.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.playlist_add,
-                    size: 64,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No playlists yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _navigateToCreatePlaylist,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create Playlist'),
-                  ),
-                ],
-              ),
-            );
-          }
-
+          final playlists = snapshot.data ?? [];
+          
           return GridView.builder(
             padding: const EdgeInsets.all(16),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -181,6 +109,39 @@ class _PlaylistCard extends StatelessWidget {
   const _PlaylistCard({
     required this.playlist,
   });
+
+  Widget _buildThumbnail() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: playlist.thumbnailUrl != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                playlist.thumbnailUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Icon(
+                      Icons.playlist_play,
+                      size: 48,
+                      color: Colors.grey[400],
+                    ),
+                  );
+                },
+              ),
+            )
+          : Center(
+              child: Icon(
+                Icons.playlist_play,
+                size: 48,
+                color: Colors.grey[400],
+              ),
+            ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -231,16 +192,6 @@ class _PlaylistCard extends StatelessWidget {
                     Navigator.pop(context);
                   },
                 ),
-                ListTile(
-                  leading: const Icon(Icons.delete, color: Colors.red),
-                  title: const Text('Delete Playlist', 
-                    style: TextStyle(color: Colors.red),
-                  ),
-                  onTap: () {
-                    // TODO: Implement delete playlist
-                    Navigator.pop(context);
-                  },
-                ),
               ],
             ),
           );
@@ -250,14 +201,7 @@ class _PlaylistCard extends StatelessWidget {
           children: [
             Expanded(
               flex: 3,
-              child: Container(
-                color: Colors.grey[200],
-                child: const Icon(
-                  Icons.playlist_play,
-                  size: 48,
-                  color: Colors.grey,
-                ),
-              ),
+              child: _buildThumbnail(),
             ),
             Expanded(
               flex: 2,

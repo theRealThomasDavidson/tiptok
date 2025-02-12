@@ -77,7 +77,6 @@ class PlaylistService {
   Stream<List<PlaylistModel>> getUserPlaylists(String userId) {
     return _playlists
         .where('userId', isEqualTo: userId)
-        .orderBy('updatedAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => PlaylistModel.fromFirestore(doc))
