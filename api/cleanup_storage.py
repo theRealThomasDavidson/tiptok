@@ -1,6 +1,10 @@
 from firebase_admin import initialize_app, storage, firestore, credentials
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 def init_firebase():
     """Initialize Firebase with service account"""
@@ -8,8 +12,7 @@ def init_firebase():
     initialize_app(cred, {
         'storageBucket': 'trainup-51d3c.firebasestorage.app'
     })
-    bucket = storage.bucket()  # No need to specify bucket name again, it's in the config
-    return bucket, firestore.client()
+    return storage.bucket(), firestore.client()
 
 def cleanup_orphaned_references():
     """Clean up orphaned references between Firestore and Storage"""
@@ -47,8 +50,6 @@ def cleanup_orphaned_references():
 
     # Track cleanup statistics
     deleted_docs = 0
-    deleted_videos = 0
-    deleted_thumbnails = 0
     orphaned_docs = []
 
     print("\nChecking for orphaned references...")
