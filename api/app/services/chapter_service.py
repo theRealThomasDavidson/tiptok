@@ -1,4 +1,4 @@
-from firebase_admin import storage, initialize_app, credentials
+from firebase_admin import storage, initialize_app, credentials, firestore, get_app
 import os
 from deepgram import Deepgram
 import asyncio
@@ -6,51 +6,116 @@ from typing import Dict, Any, List
 from datetime import timedelta
 import aiohttp
 from openai import OpenAI
+import json
+from datetime import datetime
 
 # Initialize Firebase Admin
-cred = credentials.Certificate('/app/firebase-credentials.json')
-initialize_app(cred, {
-    'storageBucket': os.environ.get('FIREBASE_STORAGE_BUCKET')
-})
+try:
+    cred = credentials.Certificate('firebase-credentials.json')
+    initialize_app(cred, {
+        'storageBucket': 'trainup-51d3c.firebasestorage.app'
+    })
+except ValueError as e:
+    # If the app is already initialized, get the existing app
+    app = get_app()
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
 
+def get_firebase_clients():
+    """Get Firebase storage and firestore clients"""
+    return storage.bucket(), firestore.client()
+
 def get_video_url(video_path: str) -> str:
-    """Get a signed URL for the video"""
-    bucket = storage.bucket()
+    """Get the download URL for a video in Firebase Storage"""
+    print(f"\nGetting URL for video: {video_path}")
+    bucket, _ = get_firebase_clients()
+    print(f"Using bucket: {bucket.name}")
     blob = bucket.blob(video_path)
-    return blob.generate_signed_url(
-        version="v4",
-        expiration=timedelta(minutes=15),
-        method="GET"
-    )
+    print(f"Blob exists: {blob.exists()}")
+    if not blob.exists():
+        raise ValueError(f"Video file not found: {video_path}")
+    url = blob.generate_signed_url(timedelta(minutes=15))
+    print(f"Generated URL: {url[:100]}...")
+    return url
 
 async def transcribe_with_deepgram(url: str) -> Dict[str, Any]:
     """Get video transcription with more granular segmentation"""
-    dg_client = Deepgram(os.environ.get('DEEPGRAM_API_KEY'))
-    
-    source = {'url': url}
-    options = {
-        'punctuate': True,
-        'paragraphs': True,
-        'utterances': True,
-        'tier': 'enhanced',
-        'smart_format': True,
-        'diarize': True,
-        'numerals': True,
-        'utt_split': 0.8  # Split utterances more frequently
-    }
-    
-    timeout = aiohttp.ClientTimeout(total=60)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        dg_client._session = session
-        response = await dg_client.transcription.prerecorded(source, options)
+    try:
+        print(f"\nInitializing Deepgram client...")
+        dg_client = Deepgram(os.environ.get('DEEPGRAM_API_KEY'))
         
-        if not response or 'results' not in response:
-            raise ValueError("Invalid response from Deepgram")
+        print(f"Processing URL: {url[:100]}...")
+        source = {'url': url}
+        options = {
+            'punctuate': True,
+            'paragraphs': True,
+            'utterances': True,
+            'tier': 'enhanced',
+            'smart_format': True,
+            'diarize': True,
+            'numerals': True,
+            'utt_split': 0.8
+        }
+        
+        print("\nSending request to Deepgram...")
+        async with aiohttp.ClientSession() as session:
+            # Create a new Deepgram client for each request to avoid session issues
+            dg_client = Deepgram(os.environ.get('DEEPGRAM_API_KEY'))
+            dg_client._session = session
             
-        return response
+            # Make the request with explicit timeout
+            response = await asyncio.wait_for(
+                dg_client.transcription.prerecorded(source, options),
+                timeout=60.0
+            )
+            
+            print("Got response from Deepgram")
+            if not response:
+                raise ValueError("Empty response from Deepgram")
+            
+            print(f"Response type: {type(response)}")
+            print(f"Response keys: {response.keys() if isinstance(response, dict) else 'Not a dict'}")
+            
+            # Validate response structure
+            if not isinstance(response, dict):
+                raise ValueError(f"Expected dict response, got {type(response)}")
+            
+            if 'results' not in response:
+                raise ValueError(f"Missing 'results' in response. Keys: {response.keys()}")
+            
+            results = response['results']
+            if not isinstance(results, dict):
+                raise ValueError(f"Expected dict for results, got {type(results)}")
+            
+            if 'channels' not in results:
+                raise ValueError(f"Missing 'channels' in results. Keys: {results.keys()}")
+            
+            channels = results['channels']
+            if not channels:
+                raise ValueError("Empty channels list in results")
+            
+            if 'alternatives' not in channels[0]:
+                raise ValueError("Missing 'alternatives' in first channel")
+            
+            return response
+            
+    except asyncio.TimeoutError:
+        print("Timeout while waiting for Deepgram response")
+        raise ValueError("Transcription request timed out after 60 seconds")
+        
+    except aiohttp.ClientError as e:
+        print(f"Network error during transcription: {str(e)}")
+        if hasattr(e, 'status'):
+            print(f"Status code: {e.status}")
+        raise ValueError(f"Network error during transcription: {str(e)}")
+        
+    except Exception as e:
+        print(f"Error during transcription: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        raise ValueError(f"Error during transcription: {str(e)}")
 
 def group_blocks_with_gpt(blocks: List[Dict]) -> List[List[int]]:
     """Use GPT to group blocks into logical chapters based on topics"""
@@ -153,55 +218,69 @@ def create_chapter_from_blocks(blocks: List[Dict], summary: str) -> Dict:
 
 def process_video(video_path: str, chapter_duration: float = 30.0) -> Dict[str, Any]:
     """Process video into semantically coherent chapters"""
-    # Get video URL
-    url = get_video_url(video_path)
-    video_id = video_path.split('/')[-1].split('.')[0]
-    
-    # Get transcription
-    response = asyncio.run(transcribe_with_deepgram(url))
-    transcript = response['results']['channels'][0]['alternatives'][0]
-    
-    # Generate chapters
-    chapters = []
-    
-    # Extract sentences from paragraphs
-    blocks = []
-    if 'paragraphs' in transcript:
-        paragraphs = transcript['paragraphs'].get('paragraphs', [])
-        for para in paragraphs:
-            if 'sentences' in para:
-                blocks.extend(para['sentences'])
-    
-    if not blocks:
-        raise ValueError("No sentence blocks found in transcript")
+    try:
+        # Get video URL
+        url = get_video_url(video_path)
+        video_id = video_path.split('/')[-1].split('.')[0]
         
-    print(f"\nProcessing {len(blocks)} sentence blocks...")
-    
-    # Group blocks by topic using GPT
-    block_groups = group_blocks_with_gpt(blocks)
-    print(f"\nFound {len(block_groups)} topic groups")
-    
-    # Process each group into a chapter
-    for i, group_indices in enumerate(block_groups):
-        print(f"\nProcessing Chapter {i+1}:")
-        # Get the blocks for this group
-        group_blocks = [blocks[i] for i in group_indices]
+        # Create new event loop for async operation
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            # Get transcription
+            response = loop.run_until_complete(transcribe_with_deepgram(url))
+        finally:
+            loop.close()
+            
+        transcript = response['results']['channels'][0]['alternatives'][0]
         
-        # Get a summary for this group
-        summary = summarize_chapter_with_gpt(group_blocks)
+        # Generate chapters
+        chapters = []
         
-        # Create the chapter
-        chapter = create_chapter_from_blocks(group_blocks, summary)
-        chapters.append(chapter)
+        # Extract sentences from paragraphs
+        blocks = []
+        if 'paragraphs' in transcript:
+            paragraphs = transcript['paragraphs'].get('paragraphs', [])
+            for para in paragraphs:
+                if 'sentences' in para:
+                    blocks.extend(para['sentences'])
         
-        print(f"Chapter {i+1} ({chapter['start']:.1f}s - {chapter['end']:.1f}s)")
-        print(f"Summary: {chapter['summary']}")
-        print("-" * 50)
-    
-    if not chapters:
-        raise ValueError("No chapters could be generated")
-    
-    return {
-        'video_id': video_id,
-        'chapters': chapters
-    } 
+        if not blocks:
+            raise ValueError("No sentence blocks found in transcript")
+            
+        print(f"\nProcessing {len(blocks)} sentence blocks...")
+        
+        # Group blocks by topic using GPT
+        block_groups = group_blocks_with_gpt(blocks)
+        print(f"\nFound {len(block_groups)} topic groups")
+        
+        # Process each group into a chapter
+        for i, group_indices in enumerate(block_groups):
+            print(f"\nProcessing Chapter {i+1}:")
+            # Get the blocks for this group
+            group_blocks = [blocks[i] for i in group_indices]
+            
+            # Get a summary for this group
+            summary = summarize_chapter_with_gpt(group_blocks)
+            
+            # Create the chapter
+            chapter = create_chapter_from_blocks(group_blocks, summary)
+            chapters.append(chapter)
+            
+            print(f"Chapter {i+1} ({chapter['start']:.1f}s - {chapter['end']:.1f}s)")
+            print(f"Summary: {chapter['summary']}")
+            print("-" * 50)
+        
+        if not chapters:
+            raise ValueError("No chapters could be generated")
+        
+        return {
+            'video_id': video_id,
+            'chapters': chapters
+        }
+    except Exception as e:
+        print(f"Error in process_video: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        raise 

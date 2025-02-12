@@ -14,48 +14,53 @@ def generate_chapters():
         "chapterDuration": 30  # optional, defaults to 30 seconds
     }
     """
-    data = request.get_json()
-    
-    if not data or 'videoPath' not in data:
-        return jsonify({'error': 'Missing videoPath in request body'}), 400
-
-    video_path = data['videoPath']
-    if not video_path.startswith('videos/'):
-        return jsonify({'error': 'Invalid video path format'}), 400
-        
-    chapter_duration = data.get('chapterDuration', 30.0)
-    if not isinstance(chapter_duration, (int, float)) or chapter_duration <= 0:
-        return jsonify({'error': 'Invalid chapter duration'}), 400
-
-    # Process the video
-    result = process_video(video_path, chapter_duration)
-    
-    # Return only the essential data
-    response = {
-        'video_id': result['video_id'],
-        'chapters': [{
-            'start': chapter['start'],
-            'end': chapter['end'],
-            'text': chapter['text']
-        } for chapter in result['chapters']]
-    }
-    
-    return jsonify(response), 200
-
-
-@chapters_bp.route('/get_chapters/<video_id>', methods=['GET'])
-def get_chapters(video_id):
-    """Get existing chapters for a video"""
     try:
-        chapters = get_video_chapters(video_id)
-        if chapters:
-            return jsonify(chapters), 200
-        return jsonify({'error': 'No chapters found for this video'}), 404
-    except Exception as e:
+        data = request.get_json()
+        
+        if not data or 'videoPath' not in data:
+            return jsonify({'error': 'Missing videoPath in request body'}), 400
+
+        video_path = data['videoPath']
+        if not video_path.startswith('videos/'):
+            return jsonify({'error': 'Invalid video path format'}), 400
+            
+        chapter_duration = data.get('chapterDuration', 30.0)
+        if not isinstance(chapter_duration, (int, float)) or chapter_duration <= 0:
+            return jsonify({'error': 'Invalid chapter duration'}), 400
+
+        # Process the video
+        result = process_video(video_path, chapter_duration)
+        
+        # Return only the essential data
+        response = {
+            'video_id': result['video_id'],
+            'chapters': [{
+                'start': chapter['start'],
+                'end': chapter['end'],
+                'text': chapter['text'],
+                'summary': chapter['summary']
+            } for chapter in result['chapters']]
+        }
+        
+        return jsonify(response), 200
+        
+    except ValueError as e:
+        print(f"Validation error: {str(e)}")
         return jsonify({
             'error': str(e),
-            'error_type': type(e).__name__
+            'error_type': 'ValueError'
+        }), 400
+        
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'traceback': traceback.format_exc()
         }), 500
+
 
 @chapters_bp.route('/transcribe', methods=['POST'])
 def transcribe_video():
