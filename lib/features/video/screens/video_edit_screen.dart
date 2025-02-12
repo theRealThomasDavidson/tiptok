@@ -8,12 +8,12 @@ import '../widgets/video_player_widget.dart';
 import '../services/video_storage_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class VideoEditScreen extends StatefulWidget {
   final String videoPath;
   final FirebaseAuth auth;
   final FirebaseStorage storage;
-  static const int MAX_DURATION_SECONDS = 60;
 
   VideoEditScreen({
     super.key,
@@ -35,6 +35,8 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
   bool _isTrimming = false;
   bool _isLoading = false;
   bool _isPlaying = false;
+  bool _isGeneratingChapters = false;
+  String? _chaptersStatus;
   double _startTime = 0.0;
   double _endTime = 0.0;
   String? _editedVideoPath;
@@ -128,21 +130,6 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
           backgroundColor: Colors.orange,
         ),
       );
-      return false;
-    }
-
-    final duration = _videoController.value.duration;
-    if (duration.inSeconds > VideoEditScreen.MAX_DURATION_SECONDS) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Video is too long (${duration.inSeconds} seconds). Maximum allowed duration is ${VideoEditScreen.MAX_DURATION_SECONDS} seconds.'
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
       return false;
     }
     return true;
@@ -292,10 +279,104 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
     }
   }
 
+  Future<void> _generateChapters() async {
+    if (!_isInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait for video to initialize'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isGeneratingChapters = true;
+      _chaptersStatus = 'Uploading video for processing...';
+    });
+
+    try {
+      final user = widget.auth.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      // Upload to videos directory (not processing)
+      final videoFile = File(_editedVideoPath ?? widget.videoPath);
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final videoId = '${timestamp}_${user.uid}';
+      final videoRef = widget.storage.ref()
+          .child('videos/${user.uid}/$videoId.mp4');
+
+      // Upload the video
+      final uploadTask = videoRef.putFile(videoFile);
+      
+      // Track upload progress
+      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+        setState(() {
+          _uploadProgress = progress;
+          _chaptersStatus = 'Uploading: ${(progress * 100).toStringAsFixed(1)}%';
+        });
+      });
+
+      // Wait for upload to complete
+      await uploadTask;
+      
+      setState(() {
+        _chaptersStatus = 'Processing video (this may take 5-10 minutes). Please keep this screen open.';
+      });
+
+      // Listen for status updates in videoprocessing collection
+      FirebaseFirestore.instance
+          .collection('videoprocessing')
+          .doc(videoId)
+          .snapshots()
+          .listen((snapshot) {
+        final status = snapshot.data()?['status'];
+        setState(() {
+          switch (status) {
+            case 'processing':
+              _chaptersStatus = 'Generating chapters... (this may take 5-10 minutes)';
+              break;
+            case 'completed':
+              _chaptersStatus = 'Chapters generated successfully!';
+              _isGeneratingChapters = false;
+              Navigator.pop(context); // Return to previous screen
+              break;
+            case 'error':
+              _chaptersStatus = 'Error: ${snapshot.data()?['error']}';
+              _isGeneratingChapters = false;
+              break;
+          }
+        });
+      });
+
+    } catch (e) {
+      setState(() {
+        _chaptersStatus = 'Error: $e';
+        _isGeneratingChapters = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error generating chapters: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Video')),
+      appBar: AppBar(
+        title: const Text('Edit Video'),
+        actions: [
+          if (_isInitialized && !_isLoading && !_isTrimming)
+            IconButton(
+              icon: const Icon(Icons.check),
+              onPressed: _uploadVideo,
+            ),
+        ],
+      ),
       body: Column(
         children: [
           if (_isInitialized) ...[
@@ -360,6 +441,25 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
               child: CircularProgressIndicator(),
             ),
           ],
+          
+          if (_isGeneratingChapters || _chaptersStatus != null)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  if (_isGeneratingChapters)
+                    LinearProgressIndicator(value: _uploadProgress),
+                  if (_chaptersStatus != null)
+                    Text(_chaptersStatus!),
+                ],
+              ),
+            ),
+            
+          ElevatedButton.icon(
+            onPressed: !_isGeneratingChapters ? _generateChapters : null,
+            icon: const Icon(Icons.auto_stories),
+            label: const Text('Generate Chapters'),
+          ),
         ],
       ),
     );
