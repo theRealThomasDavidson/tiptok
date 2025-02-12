@@ -260,6 +260,19 @@ class _VideoThumbnail extends StatelessWidget {
     required this.onTap,
   });
 
+  Widget _buildPlaceholder() {
+    return Container(
+      color: Colors.grey[200],
+      child: const Center(
+        child: Icon(
+          Icons.video_library,
+          size: 32,
+          color: Colors.grey,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -275,10 +288,10 @@ class _VideoThumbnail extends StatelessWidget {
                   ? Border.all(color: Colors.blue, width: 2)
                   : null,
             ),
-            child: video.thumbnailUrl != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: video.thumbnailUrl != null
+                  ? Image.network(
                       video.thumbnailUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
@@ -295,71 +308,27 @@ class _VideoThumbnail extends StatelessWidget {
                           ),
                         );
                       },
-                    ),
-                  )
-                : _buildPlaceholder(),
+                    )
+                  : _buildPlaceholder(),
+            ),
           ),
           if (isSelected)
             Positioned(
               top: 8,
               right: 8,
               child: Container(
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: Colors.blue,
                   shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
                 ),
-                padding: const EdgeInsets.all(4),
                 child: const Icon(
                   Icons.check,
                   color: Colors.white,
-                  size: 16,
+                  size: 20,
                 ),
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlaceholder() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.grey[300]!,
-            Colors.grey[400]!,
-          ],
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.play_circle_outline,
-            size: 48,
-            color: Colors.white,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Video Preview',
-            style: TextStyle(
-              color: Colors.grey[700],
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            DateTime.fromMillisecondsSinceEpoch(
-              int.tryParse(video.id) ?? 0,
-            ).toString().split('.')[0],
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 10,
-            ),
-          ),
         ],
       ),
     );

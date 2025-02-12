@@ -167,6 +167,40 @@ class _PlaylistViewScreenState extends State<PlaylistViewScreen> {
     );
   }
 
+  Widget _buildVideoThumbnail(VideoModel video) {
+    return Container(
+      width: 120,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: video.thumbnailUrl != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                video.thumbnailUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Icon(
+                      Icons.video_library,
+                      size: 32,
+                      color: Colors.grey[400],
+                    ),
+                  );
+                },
+              ),
+            )
+          : Center(
+              child: Icon(
+                Icons.video_library,
+                size: 32,
+                color: Colors.grey[400],
+              ),
+            ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -214,71 +248,18 @@ class _PlaylistViewScreenState extends State<PlaylistViewScreen> {
                                 final video = _availableVideos![index];
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  child: SizedBox(
-                                    width: 200,
-                                    child: Card(
-                                      clipBehavior: Clip.antiAlias,
-                                      child: InkWell(
-                                        onTap: () => _addVideoToPlaylist(video),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                                          children: [
-                                            Expanded(
-                                              child: Stack(
-                                                fit: StackFit.expand,
-                                                children: [
-                                                  if (video.thumbnailUrl != null)
-                                                    Image.network(
-                                                      video.thumbnailUrl!,
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder: (context, error, stackTrace) {
-                                                        return _buildPlaceholder();
-                                                      },
-                                                    )
-                                                  else
-                                                    _buildPlaceholder(),
-                                                  Container(
-                                                    decoration: BoxDecoration(
-                                                      gradient: LinearGradient(
-                                                        begin: Alignment.center,
-                                                        end: Alignment.bottomCenter,
-                                                        colors: [
-                                                          Colors.transparent,
-                                                          Colors.black.withOpacity(0.7),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const Center(
-                                                    child: Icon(
-                                                      Icons.add_circle_outline,
-                                                      color: Colors.white,
-                                                      size: 40,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(8.0),
-                                              child: Text(
-                                                'Tap to add',
-                                                style: Theme.of(context).textTheme.bodyMedium,
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
+                                  child: InkWell(
+                                    onTap: () => _addVideoToPlaylist(video),
+                                    child: _buildVideoThumbnail(video),
                                   ),
                                 );
                               },
                             ),
                           ),
-                          const Divider(height: 32, thickness: 2),
                         ],
                       ),
+
+                    const Divider(thickness: 2),
 
                     // Playlist Videos Section
                     Padding(
@@ -301,87 +282,28 @@ class _PlaylistViewScreenState extends State<PlaylistViewScreen> {
                           itemCount: _videos!.length,
                           itemBuilder: (context, index) {
                             final video = _videos![index];
-                            return Card(
-                              margin: const EdgeInsets.symmetric(
-                                vertical: 4,
-                                horizontal: 8,
+                            return ListTile(
+                              leading: SizedBox(
+                                width: 80,
+                                height: 60,
+                                child: _buildVideoThumbnail(video),
                               ),
-                              child: Column(
-                                children: [
-                                  AspectRatio(
-                                    aspectRatio: 16 / 9,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[200],
-                                        borderRadius: const BorderRadius.vertical(
-                                          top: Radius.circular(4),
-                                        ),
-                                      ),
-                                      child: video.thumbnailUrl != null
-                                          ? Image.network(
-                                              video.thumbnailUrl!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                return _buildPlaceholder();
-                                              },
-                                            )
-                                          : _buildPlaceholder(),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          'Video ${index + 1}',
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        Row(
-                                          children: [
-                                            IconButton(
-                                              icon: const Icon(Icons.remove_circle_outline),
-                                              color: Colors.red,
-                                              onPressed: () => _removeVideoFromPlaylist(video),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            ElevatedButton.icon(
-                                              onPressed: () => _navigateToPlayback(index),
-                                              icon: const Icon(Icons.play_arrow),
-                                              label: const Text('Play'),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                              title: Text(
+                                video.name ?? 'Video ${index + 1}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.remove_circle_outline),
+                                onPressed: () => _removeVideoFromPlaylist(video),
+                              ),
+                              onTap: () => _navigateToPlayback(index),
                             );
                           },
                         ),
                       ),
                   ],
                 ),
-    );
-  }
-
-  Widget _buildPlaceholder() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[300],
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: const Center(
-        child: Icon(
-          Icons.play_circle_outline,
-          size: 48,
-          color: Colors.white,
-        ),
-      ),
     );
   }
 } 

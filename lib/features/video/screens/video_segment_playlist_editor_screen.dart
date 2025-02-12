@@ -12,6 +12,8 @@ import '../../playlist/models/playlist_model.dart';
 import '../../playlist/services/playlist_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class VideoSegmentPlaylistEditorScreen extends StatefulWidget {
   final String videoPath;
@@ -32,7 +34,7 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
   final List<VideoSegment> _segments = [];
   int _activeSegmentIndex = -1;
   bool _isProcessing = false;
-  double _uploadProgress = 0;
+  late double _uploadProgress;
   String _playlistTitle = '';
   String _processingStatus = '';
   final TextEditingController _titleController = TextEditingController();
@@ -40,15 +42,17 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
   final PlaylistService _playlistService = PlaylistService();
   bool _isFullVideo = true;
   Duration _currentPosition = Duration.zero;
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
+    _uploadProgress = 0.0;
+    _controller = VideoPlayerController.file(File(widget.videoPath));
     _initializeVideo();
   }
 
   Future<void> _initializeVideo() async {
-    _controller = VideoPlayerController.file(File(widget.videoPath));
     await _controller.initialize();
     _controller.setLooping(false);
     
@@ -62,12 +66,13 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
           var segment = _segments[_activeSegmentIndex];
           var currentSeconds = _controller.value.position.inMilliseconds / 1000;
           
-          if (currentSeconds >= segment.endTime) {
+          // Add a small buffer (0.1 seconds) to prevent exact matches
+          if (currentSeconds >= segment.endTime + 0.1) {
             _controller.seekTo(Duration(milliseconds: (segment.startTime * 1000).round()));
             if (!_controller.value.isPlaying) {
               _controller.play();
             }
-          } else if (currentSeconds < segment.startTime) {
+          } else if (currentSeconds < segment.startTime - 0.1) {
             _controller.seekTo(Duration(milliseconds: (segment.startTime * 1000).round()));
           }
         } else {
@@ -81,7 +86,9 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
       }
     });
     
-    setState(() {});
+    setState(() {
+      _isInitialized = true;
+    });
   }
 
   void _addSegment() {
@@ -501,23 +508,71 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
             ),
           ],
 
-          // Segment list
+          // Segments or Generate Chapters button
           Expanded(
-            child: ListView.builder(
-              itemCount: _segments.length,
-              itemBuilder: (context, index) {
-                final segment = _segments[index];
-                return VideoSegmentEditor(
-                  segment: segment,
-                  originalVideoDuration: _controller.value.duration.inMilliseconds / 1000,
-                  onSegmentChanged: (newSegment) => _updateSegment(index, newSegment),
-                  onDeleteSegment: () => _deleteSegment(index),
-                  onSeekTo: (time) => _controller.seekTo(Duration(milliseconds: (time * 1000).round())),
-                  onPreviewSegment: () => _previewSegment(index),
-                  isActive: index == _activeSegmentIndex,
-                );
-              },
-            ),
+            child: _segments.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'No segments added yet',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _isProcessing ? null : _generateChapters,
+                        icon: const Icon(Icons.auto_stories),
+                        label: const Text('Generate Chapters'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                      if (_isProcessing) ...[
+                        const SizedBox(height: 16),
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 8),
+                        Text(
+                          _processingStatus,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: _segments.length,
+                  itemBuilder: (context, index) {
+                    final segment = _segments[index];
+                    return VideoSegmentEditor(
+                      key: ValueKey(segment.hashCode),
+                      segment: segment,
+                      originalVideoDuration: _controller.value.duration.inMilliseconds / 1000,
+                      onSegmentChanged: (updatedSegment) {
+                        setState(() {
+                          _segments[index] = updatedSegment;
+                        });
+                      },
+                      onDeleteSegment: () {
+                        setState(() {
+                          _segments.removeAt(index);
+                        });
+                      },
+                      onSeekTo: (position) {
+                        _controller.seekTo(Duration(milliseconds: (position * 1000).round()));
+                      },
+                      onPreviewSegment: () => _previewSegment(index),
+                      isActive: _activeSegmentIndex == index,
+                    );
+                  },
+                ),
           ),
         ],
       ),
@@ -527,11 +582,12 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: _isProcessing ? null : _addSegment,
-                child: const Text('Add Segment'),
+                icon: const Icon(Icons.add),
+                label: const Text('Add Segment'),
               ),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: _isProcessing 
                   ? null 
                   : () {
@@ -546,12 +602,98 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
                         );
                       }
                     },
-                child: Text(buttonText),
+                icon: const Icon(Icons.upload),
+                label: Text(buttonText),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _generateChapters() async {
+    if (!_isInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait for video to initialize'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+      _processingStatus = 'Uploading video for processing...';
+    });
+
+    try {
+      final user = widget.auth.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      // Upload to videos directory (not processing)
+      final videoFile = File(widget.videoPath);
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final videoId = '${timestamp}_${user.uid}';
+      final videoRef = FirebaseStorage.instance.ref()
+          .child('videos/${user.uid}/$videoId.mp4');
+
+      // Upload the video
+      final uploadTask = videoRef.putFile(videoFile);
+      
+      // Track upload progress
+      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+        setState(() {
+          _uploadProgress = progress;
+          _processingStatus = 'Uploading: ${(progress * 100).toStringAsFixed(1)}%';
+        });
+      });
+
+      // Wait for upload to complete
+      await uploadTask;
+      
+      setState(() {
+        _processingStatus = 'Processing video (this may take 5-10 minutes). Please keep this screen open.';
+      });
+
+      // Listen for status updates in videoprocessing collection
+      FirebaseFirestore.instance
+          .collection('videoprocessing')
+          .doc(videoId)
+          .snapshots()
+          .listen((snapshot) {
+        final status = snapshot.data()?['status'];
+        setState(() {
+          switch (status) {
+            case 'processing':
+              _processingStatus = 'Generating chapters... (this may take 5-10 minutes)';
+              break;
+            case 'completed':
+              _processingStatus = 'Chapters generated successfully!';
+              _isProcessing = false;
+              Navigator.pop(context); // Return to previous screen
+              break;
+            case 'error':
+              _processingStatus = 'Error: ${snapshot.data()?['error']}';
+              _isProcessing = false;
+              break;
+          }
+        });
+      });
+
+    } catch (e) {
+      setState(() {
+        _processingStatus = 'Error: $e';
+        _isProcessing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error generating chapters: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 } 

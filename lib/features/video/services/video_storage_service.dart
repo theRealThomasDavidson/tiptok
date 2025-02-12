@@ -124,31 +124,51 @@ class VideoStorageService {
         final userVideos = await prefix.listAll();
         
         for (var item in userVideos.items) {
-          final url = await item.getDownloadURL();
-          final metadata = await item.getMetadata();
-          
-          // Try to get thumbnail URL
-          String? thumbnailUrl;
           try {
-            final thumbRef = storage.ref('thumbnails/${prefix.name}/${item.name}_thumb.jpg');
-            thumbnailUrl = await thumbRef.getDownloadURL();
-          } catch (_) {
-            // Ignore if thumbnail doesn't exist
+            final url = await item.getDownloadURL();
+            final metadata = await item.getMetadata();
+            
+            // Try to get thumbnail URL
+            String? thumbnailUrl;
+            try {
+              final thumbRef = storage.ref('thumbnails/${prefix.name}/${item.name}_thumb.jpg');
+              thumbnailUrl = await thumbRef.getDownloadURL();
+            } catch (e) {
+              // Ignore if thumbnail doesn't exist
+              print('Thumbnail not found for ${item.name}: $e');
+            }
+
+            // Only add videos that successfully loaded
+            videos.add(VideoModel(
+              id: item.name,
+              userId: prefix.name,
+              url: url,
+              thumbnailUrl: thumbnailUrl,
+              timestamp: metadata.timeCreated ?? DateTime.now(),
+            ));
+          } catch (e) {
+            print('Error loading video ${item.name}: $e');
+            // If this was a 404 error, clean up the reference from Firestore
+            if (e is FirebaseException && e.code == 'storage/object-not-found') {
+              try {
+                // Get video ID from the file name
+                final videoId = item.name.split('.').first;
+                await _firestore.collection('videos').doc(videoId).delete();
+                print('Cleaned up orphaned reference for video $videoId');
+              } catch (cleanupError) {
+                print('Error cleaning up orphaned reference: $cleanupError');
+              }
+            }
+            // Continue to next video
+            continue;
           }
-          
-          videos.add(VideoModel(
-            id: item.name,
-            userId: prefix.name,
-            url: url,
-            thumbnailUrl: thumbnailUrl,
-            timestamp: metadata.timeCreated ?? DateTime.now(),
-          ));
         }
       }
       
       videos.sort((a, b) => b.timestamp.compareTo(a.timestamp));
       return videos;
     } catch (e) {
+      print('Error fetching videos: $e');
       throw Exception('Failed to fetch videos: $e');
     }
   }

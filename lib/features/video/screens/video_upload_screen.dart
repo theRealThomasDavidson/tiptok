@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'video_segment_playlist_editor_screen.dart';
 import '../screens/video_edit_screen.dart';
+import '../screens/camera_screen.dart';
 
 class VideoUploadScreen extends StatefulWidget {
   const VideoUploadScreen({super.key});
@@ -114,16 +115,40 @@ class _VideoUploadScreenState extends State<VideoUploadScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: _pickAndEditVideo,
-              icon: const Icon(Icons.add_circle_outline),
-              label: const Text('Select Video'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _pickAndEditVideo,
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('Select Video'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CameraScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('Record Video'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
