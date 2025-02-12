@@ -19,13 +19,22 @@ def init_firebase()->Bucket:
     output: Bucket
             this is the bucket object from the firebase app
     """
-    cred = credentials.Certificate('firebase-credentials.json')
+    # Get Firebase configuration from environment variables
+    firebase_creds_path = os.environ.get('FIREBASE_CREDENTIALS_PATH')
+    firebase_bucket = os.environ.get('FIREBASE_STORAGE_BUCKET')
+    
+    if not firebase_creds_path:
+        raise ValueError("FIREBASE_CREDENTIALS_PATH environment variable not found")
+    if not firebase_bucket:
+        raise ValueError("FIREBASE_STORAGE_BUCKET environment variable not found")
+        
+    cred = credentials.Certificate(firebase_creds_path)
     # Initialize Firebase
     app = initialize_app(cred)
     print("Firebase initialized")
     
-    # Get bucket with explicit name
-    bucket = storage.bucket('trainup-51d3c.firebasestorage.app')
+    # Get bucket with name from environment
+    bucket = storage.bucket(firebase_bucket)
     return bucket
 
 def list_videos(bucket:Bucket)->List:

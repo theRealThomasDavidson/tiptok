@@ -10,7 +10,7 @@ from openai import OpenAI
 # Initialize Firebase Admin
 cred = credentials.Certificate('/app/firebase-credentials.json')
 initialize_app(cred, {
-    'storageBucket': 'trainup-51d3c.firebasestorage.app'
+    'storageBucket': os.environ.get('FIREBASE_STORAGE_BUCKET')
 })
 
 # Initialize OpenAI client
