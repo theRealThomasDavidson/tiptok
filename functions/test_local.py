@@ -10,8 +10,11 @@ async def main():
     # Initialize the Deepgram SDK
     dg_client = Deepgram(os.getenv('DEEPGRAM_API_KEY'))
     
-    # The URL to transcribe
-    url = "https://firebasestorage.googleapis.com/v0/b/trainup-51d3c.appspot.com/o/videos%2FIH2Zp2bAPJ0hriFakZswjFC96xH3%2F1738989396184.mp4?alt=media"
+    # The URL to transcribe - should be set in .env as TEST_VIDEO_URL
+    url = os.getenv('TEST_VIDEO_URL')
+    if not url:
+        print("Error: TEST_VIDEO_URL not set in .env file")
+        return
     
     try:
         source = {'url': url}
