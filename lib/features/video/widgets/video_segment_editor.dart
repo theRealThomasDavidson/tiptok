@@ -8,11 +8,7 @@ class VideoSegmentEditor extends StatelessWidget {
   final VoidCallback onDeleteSegment;
   final bool isActive;
   final Function(double) onSeekTo;
-<<<<<<< HEAD
   final VoidCallback onPreviewSegment;
-=======
-  final Function() onPreviewSegment;
->>>>>>> 8698398ab18c8ab14834f221bca1510d90a23aec
 
   const VideoSegmentEditor({
     super.key,
@@ -25,7 +21,6 @@ class VideoSegmentEditor extends StatelessWidget {
     this.isActive = false,
   });
 
-<<<<<<< HEAD
   String _formatDuration(double seconds) {
     final duration = Duration(milliseconds: (seconds * 1000).round());
     final minutes = duration.inMinutes;
@@ -34,30 +29,22 @@ class VideoSegmentEditor extends StatelessWidget {
     return '$minutes:$remainingSeconds.$tenths';
   }
 
-=======
->>>>>>> 8698398ab18c8ab14834f221bca1510d90a23aec
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-<<<<<<< HEAD
         color: isActive ? Colors.blue.withOpacity(0.1) : null,
         border: Border.all(
           color: isActive ? Colors.blue : Colors.grey.shade300,
           width: isActive ? 2 : 1,
         ),
         borderRadius: BorderRadius.circular(12),
-=======
-        border: Border.all(color: isActive ? Colors.orange : Colors.grey),
-        borderRadius: BorderRadius.circular(8),
->>>>>>> 8698398ab18c8ab14834f221bca1510d90a23aec
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-<<<<<<< HEAD
           // Preview and time display
           Row(
             children: [
@@ -121,40 +108,25 @@ class VideoSegmentEditor extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           // Time range sliders
-=======
-          // Time range controls
->>>>>>> 8698398ab18c8ab14834f221bca1510d90a23aec
           Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-<<<<<<< HEAD
                     const Text(
                       'Start Time',
                       style: TextStyle(fontSize: 12),
                     ),
-=======
-                    Text('Start: ${segment.startTime.toStringAsFixed(1)}s'),
->>>>>>> 8698398ab18c8ab14834f221bca1510d90a23aec
                     Slider(
                       value: segment.startTime,
                       min: 0,
                       max: segment.endTime,
                       onChanged: (value) {
                         onSeekTo(value);
-<<<<<<< HEAD
                         onSegmentChanged(segment.copyWith(startTime: value));
                       },
                       activeColor: Colors.blue,
-=======
-                        final newSegment = segment.copyWith(
-                          startTime: value,
-                        );
-                        onSegmentChanged(newSegment);
-                      },
->>>>>>> 8698398ab18c8ab14834f221bca1510d90a23aec
                     ),
                   ],
                 ),
@@ -164,71 +136,33 @@ class VideoSegmentEditor extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-<<<<<<< HEAD
                     const Text(
                       'End Time',
                       style: TextStyle(fontSize: 12),
                     ),
-=======
-                    Text('End: ${segment.endTime.toStringAsFixed(1)}s'),
->>>>>>> 8698398ab18c8ab14834f221bca1510d90a23aec
                     Slider(
                       value: segment.endTime,
                       min: segment.startTime,
                       max: originalVideoDuration,
                       onChanged: (value) {
                         onSeekTo(value);
-<<<<<<< HEAD
                         onSegmentChanged(segment.copyWith(endTime: value));
                       },
                       activeColor: Colors.blue,
-=======
-                        final newSegment = segment.copyWith(
-                          endTime: value,
-                        );
-                        onSegmentChanged(newSegment);
-                      },
->>>>>>> 8698398ab18c8ab14834f221bca1510d90a23aec
                     ),
                   ],
                 ),
               ),
             ],
           ),
-<<<<<<< HEAD
-=======
-
-          // Preview controls
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton.icon(
-                onPressed: onPreviewSegment,
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('Preview Segment'),
-              ),
-            ],
-          ),
-
           // Segment info
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Duration: ${(segment.endTime - segment.startTime).toStringAsFixed(1)}s',
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete),
-                  color: Colors.red,
-                  onPressed: onDeleteSegment,
-                ),
-              ],
+            child: Text(
+              'Duration: ${(segment.endTime - segment.startTime).toStringAsFixed(1)}s',
+              style: const TextStyle(color: Colors.grey),
             ),
           ),
->>>>>>> 8698398ab18c8ab14834f221bca1510d90a23aec
         ],
       ),
     );
