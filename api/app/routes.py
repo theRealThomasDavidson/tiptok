@@ -1,65 +1,99 @@
 from flask import Blueprint, request, jsonify
-from .services.chapter_service import process_video
-from .services.transcription_service import generate_transcription, get_video_chapters
-import traceback
+from .services.chapter_service import generate_semantic_chapters, summarize_chapter_with_gpt
+from .services.transcription_service import generate_transcription, get_video_chapters, get_video_url, transcribe_with_deepgram
+from werkzeug.exceptions import BadRequest
+import asyncio
 
 chapters_bp = Blueprint('chapters', __name__)
+
+@chapters_bp.route('/get_summary', methods=['POST'])
+def get_summary():
+    """Get just the summary for a video
+    Request body:
+    {
+        "videoPath": "videos/user_id/video_id.mp4"
+    }
+    """
+    data = request.get_json()
+    
+    if not data or 'videoPath' not in data:
+        return jsonify({'error': 'Missing videoPath in request body'}), 400
+
+    video_path = data['videoPath']
+    if not video_path.startswith('videos/'):
+        return jsonify({'error': 'Invalid video path format'}), 400
+        
+    # First check if video exists and get URL
+    try:
+        url = get_video_url(video_path)
+    except ValueError as e:
+        return jsonify({'error': "howdy" + str(e)}), 404
+    
+    # Create new event loop for async operation
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        # Get transcription with summary option
+        response = loop.run_until_complete(transcribe_with_deepgram(url, {}))
+        if not response:
+            return jsonify({
+                'summary': 'No voice content detected in this video'
+            }), 200
+
+        # Get the transcript and generate summary
+        transcript = response['results']['channels'][0]['alternatives'][0]['transcript']
+        if not transcript:
+            return jsonify({
+                'summary': 'No transcription available for this video'
+            }), 200
+
+        # Generate summary from transcript
+        summary = summarize_chapter_with_gpt([{'text': transcript}])
+        return jsonify({
+            'summary': summary
+        }), 200
+            
+    finally:
+        loop.close()
+
 
 @chapters_bp.route('/generate_chapters', methods=['POST'])
 def generate_chapters():
     """Generate chapters for a video
     Request body:
     {
-        "videoPath": "videos/user_id/video_id.mp4",
-        "chapterDuration": 30  # optional, defaults to 30 seconds
+        "videoPath": "videos/user_id/video_id.mp4"
     }
     """
+    data = request.get_json()
+    
+    if not data or 'videoPath' not in data:
+        return jsonify({'error': 'Missing videoPath in request body'}), 400
+
+    video_path = data['videoPath']
+    if not video_path.startswith('videos/'):
+        return jsonify({'error': 'Invalid video path format'}), 400
+        
+    # First check if video exists and get URL
     try:
-        data = request.get_json()
-        
-        if not data or 'videoPath' not in data:
-            return jsonify({'error': 'Missing videoPath in request body'}), 400
-
-        video_path = data['videoPath']
-        if not video_path.startswith('videos/'):
-            return jsonify({'error': 'Invalid video path format'}), 400
-            
-        chapter_duration = data.get('chapterDuration', 30.0)
-        if not isinstance(chapter_duration, (int, float)) or chapter_duration <= 0:
-            return jsonify({'error': 'Invalid chapter duration'}), 400
-
-        # Process the video
-        result = process_video(video_path, chapter_duration)
-        
-        # Return only the essential data
-        response = {
-            'video_id': result['video_id'],
-            'chapters': [{
-                'start': chapter['start'],
-                'end': chapter['end'],
-                'text': chapter['text'],
-                'summary': chapter['summary']
-            } for chapter in result['chapters']]
-        }
-        
-        return jsonify(response), 200
-        
+        url = get_video_url(video_path)
     except ValueError as e:
-        print(f"Validation error: {str(e)}")
-        return jsonify({
-            'error': str(e),
-            'error_type': 'ValueError'
-        }), 400
+        return jsonify({'error': str(e)}), 404
         
-    except Exception as e:
-        print(f"Unexpected error: {str(e)}")
-        print(f"Error type: {type(e).__name__}")
-        print(f"Traceback: {traceback.format_exc()}")
-        return jsonify({
-            'error': str(e),
-            'error_type': type(e).__name__,
-            'traceback': traceback.format_exc()
-        }), 500
+    # Generate semantic chapters from the video
+    result = generate_semantic_chapters(url)
+
+    # Return only the essential data
+    response = {
+        'video_id': video_path,
+        'chapters': [{
+            'start': chapter['start'],
+            'end': chapter['end'],
+        } for chapter in result['chapters']]
+    }
+    
+    return jsonify(response), 200
+        
 
 
 @chapters_bp.route('/transcribe', methods=['POST'])
