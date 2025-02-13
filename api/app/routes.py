@@ -1,6 +1,10 @@
 from flask import Blueprint, request, jsonify
-from .services.chapter_service import generate_semantic_chapters, summarize_chapter_with_gpt
-from .services.transcription_service import  get_video_url, transcribe_with_deepgram
+from .services.video_service import (
+    get_video_url,
+    transcribe_with_deepgram,
+    generate_semantic_chapters,
+    summarize_chapter_with_gpt
+)
 import asyncio
 
 chapters_bp = Blueprint('chapters', __name__)
