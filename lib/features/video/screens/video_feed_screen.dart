@@ -79,71 +79,98 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
         itemCount: _videos!.length,
         itemBuilder: (context, index) {
           final video = _videos![index];
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              // Video Player
-              VideoPlayerWidget(
-                videoUrl: video.url,
-              ),
-              
-              // Metadata Overlay
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.7),
-                        Colors.transparent,
-                      ],
+          return Container(
+            color: Colors.black,
+            child: SafeArea(
+              child: Stack(
+                children: [
+                  // Center the video player while maintaining aspect ratio
+                  Center(
+                    child: VideoPlayerWidget(
+                      videoUrl: video.url,
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Uploaded by: ${video.userId}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+
+                  // Metadata Overlay
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.7),
+                            Colors.transparent,
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Uploaded on: ${video.timestamp.toLocal().toString().split('.')[0]}',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (video.name != null)
+                            Text(
+                              video.name!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Uploaded by: ${video.userId}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                          ),
+                          if (video.description != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              video.description!,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              
-              // Swipe Indicator
-              Positioned(
-                bottom: 20,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Text(
-                    'Swipe up for next video',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 14,
                     ),
                   ),
-                ),
+                  
+                  // Swipe Indicator
+                  Positioned(
+                    bottom: 20,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.keyboard_arrow_up,
+                            color: Colors.white.withOpacity(0.8),
+                          ),
+                          Text(
+                            'Swipe up for next video',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           );
         },
       ),

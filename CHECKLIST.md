@@ -1,156 +1,96 @@
-# TipTok Development Checklist
+# TikTok Clone Development Checklist
 
-## Current Focus: Video Upload Feature
+## Authentication Enhancement
+- [ ] Switch to branch: `feature/enhanced-auth`
+  - [ ] Implement phone number authentication
+    - [x] Phone number input UI
+    - [x] Verification code handling
+    - [ ] Error states and validation\
+      - we should assume american phone numbers if no countery code is given and fill out the countery code if needed for firebaseand try to shorted the error message for incorrect formats and basically be a bit permissive in formats including to allow just the digits if entered. 
+  - [ ] Add Google authentication
+    - [x] Configure Google Sign-In
+    - [x] Implement sign-in flow
+    - [x] Handle auth state changes
+      - we just need this to pass tests. 
+  - [ ] Fix GitHub authentication
+    - [ ] GitHub login button on sign-in screen currently performs sign-up instead of sign-in
+  - [ ] Commit and merge to `develop`
 
-### 1. Project Setup
-- [x] Add file_picker dependency
-- [x] Add video_player dependency
-- [x] Update AndroidManifest.xml for storage permissions
-- [ ] Create video feature directory structure
+## Playlist Feature
+- [ ] Switch to branch: `feature/playlists`
+  - [x] Create playlist data model
+    - [x] Define playlist schema
+    - [x] Add metadata fields (title, description, privacy)
+    - [x] Video reference list structure
+  - [x] Implement playlist creation UI
+    - [x] Creation form with basic fields
+    - [x] Privacy settings
+    - [x] Thumbnail selection
+  - [x] Add video selection/ordering interface
+    - [x] Multi-select video interface
+    - [x] Drag-and-drop reordering
+    - [x] Batch add/remove videos
+  - [x] Implement playlist display
+    - [x] Grid/list view of playlists
+    - [x] Playlist preview cards
+    - [x] Playlist metadata display
+  - [x] Add playlist selector
+    - [x] Quick-add to playlist button
+    - [x] Playlist selection modal
+    - [x] Create new playlist option
+  - [x] Develop playlist playback mode
+    - [x] Sequential video playback
+    - [x] Next/previous controls
+    - [x] Playlist progress indicator
+  - [x] Create playlist feed integration
+    - [x] Playlist recommendations
+    - [x] User playlists section
+  - [x] Add playlist management features
+    - [x] Edit playlist details
+    - [x] Reorder videos
+    - [x] Delete playlist
+  - [ ] Commit and merge to `develop`
 
-### 2. Firebase Integration
-- [x] Set up Firebase Storage rules
-- [x] Create VideoStorageService
-  - [x] Upload method
-  - [x] Progress tracking
-  - [x] Error handling
-- [x] Add upload status indicators
+## Enhanced Video Editor
+- [ ] Switch to branch: `feature/advanced-editor`
+  - [x] Implement video splitting functionality
+    - [x] Add segment selection UI
+    - [x] Create split preview functionality
+    - [x] Implement segment-based playback
+  - [x] Enhance preview system
+    - [x] Add loop preview with spacers
+    - [x] Implement segment-start preview
+    - [x] Create visual timeline markers
+  - [ ] Commit and merge to `develop`
 
-### 3. Basic Upload UI
-- [x] Create VideoUploadScreen
-- [x] File selection button
-- [x] Selected file display
-- [x] Upload button
-- [x] Add navigation from HomeScreen
-- [x] Basic error handling
-
-### 4. Preview Functionality
-- [x] Create VideoPreviewScreen
-- [x] Implement video player
-- [x] Add upload confirmation
-- [x] Handle upload success/failure
-
-### 5. Testing
-- [x] Test file selection
-- [x] Test upload process
-- [x] Test preview functionality
-- [ ] Test error scenarios
-
-# Video Editing Feature Checklist
-
-## Research & Setup
-- [x] Understanding Asynchronous Operations
-  - [x] Futures Explanation
-  - [x] Why we need Futures
-  - [x] Error handling patterns
-  - [x] Progress tracking
-
-- [x] Research video editing packages for Flutter
-  - [x] Core Video Processing Options:
-    - [x] `ffmpeg_kit_flutter` evaluation
-    - [x] `video_editor` capabilities
-    - [x] `video_thumbnail` features
-    - [x] Current project package review
-
-- [x] Required Platform Setup Documentation
-  - [x] Android Configuration
-  - [x] iOS Configuration
-  - [x] FFmpeg Commands Reference
-
-## Implementation Plan
-
-### 1. File Selection Enhancement
-- [x] Update FilePicker Implementation
-  - [x] Single Video Selection
-  - [x] Format filtering
-  - [x] Quality preservation
-  - [x] Basic error handling
-  - [ ] File size validation (TODO)
-  - [ ] Multiple video selection (will implement with stitching feature)
-
-### 2. Video Player Implementation (NEXT FOCUS)
-- [ ] Create custom video player widget
-  - [ ] Add frame-by-frame navigation
-  - [ ] Add precise timestamp seeking
-  - [ ] Implement video timeline UI
-  - [ ] Add thumbnail generation for timeline
-- [ ] Add video loading and caching
-- [ ] Implement video preview
-
-### 3. Hard Cut Editing (PENDING)
-- [ ] Implement segment selection UI
-  - [ ] Add timeline markers for selection
-  - [ ] Create frame-accurate selection tool
-  - [ ] Add visual feedback for selected segments
-- [ ] Create video trimming functionality
-  - [ ] Implement FFmpeg trimming commands
-  - [ ] Handle start/end frame selection
-  - [ ] Maintain video quality during cuts
-- [ ] Add segment removal functionality
-  - [ ] Handle multiple segment selection
-  - [ ] Preview removed segments
-  - [ ] Undo/redo functionality
-
-### 4. Text Overlay (PENDING)
-- [ ] Create text input UI
-  - [ ] Text input field
-  - [ ] Font selection
-  - [ ] Color picker
-  - [ ] Size adjustment
-- [ ] Implement text positioning
-  - [ ] Draggable text overlay
-  - [ ] Text rotation
-  - [ ] Text scaling
-- [ ] Add text styling options
-  - [ ] Font styles
-  - [ ] Text effects (shadow, outline)
-  - [ ] Text opacity
-
-### 5. Video Stitching (PENDING)
-- [ ] Implement video combining functionality
-  - [ ] Handle multiple video inputs
-  - [ ] Manage transitions between segments
-  - [ ] Preview combined video
-- [ ] Add segment reordering
-  - [ ] Drag-and-drop interface
-  - [ ] Timeline visualization
-- [ ] Create export options
-  - [ ] Multiple resolution support
-  - [ ] Quality settings
-  - [ ] Format options
-
-### 6. Performance Optimization (ONGOING)
-- [ ] Implement efficient video processing
-  - [ ] Background processing
-  - [ ] Frame caching
-  - [ ] Memory management
-- [ ] Optimize for different devices
-  - [ ] Handle different screen sizes
-  - [ ] Adapt to device capabilities
-- [ ] Add error handling
-  - [ ] Recovery options
-  - [ ] User feedback
-
-### 7. Testing (ONGOING)
-- [ ] Unit tests for core functionality
-- [ ] Integration tests for UI
-- [ ] Performance testing
-  - [ ] Large video files
-  - [ ] Multiple edits
-  - [ ] Device resource usage
-- [ ] User testing
-  - [ ] Usability feedback
-  - [ ] Performance feedback
+## Testing & Quality Assurance
+- [x] Switch to branch: `feature/testing`
+  - [x] Write unit tests for new features
+  - [x] Implement integration tests
+  - [x] Performance testing for video playback
+  - [x] Authentication flow testing
+  - [ ] Commit and merge to `develop`
 
 ## Documentation
-- [ ] Technical documentation
-- [ ] User guide
-- [ ] API documentation
-- [ ] Performance guidelines
+- [ ] Switch to branch: `feature/documentation`
+  - [ ] Update API documentation
+  - [ ] Create user guides
+  - [ ] Document authentication flows
+  - [ ] Add playlist feature documentation
+  - [ ] Commit and merge to `develop`
 
-## Future Enhancements
-- [ ] Audio editing
-- [ ] Filters and effects
-- [ ] Transition effects
-- [ ] Export presets for different platforms
-- [ ] Cloud processing options 
+## Completed Milestones ✅
+- [x] Initial Firebase deployment
+- [x] Basic app structure
+- [x] Firebase integration
+- [x] Basic video upload
+- [x] Initial video editing features
+- [x] Enhanced video thumbnail handling
+- [x] Improved error states and loading indicators
+- [x] Playlist UI and management
+
+## Notes
+- Each feature should include error handling and loading states
+- Focus on mobile-first design principles
+- Maintain consistent UI/UX across features
+- Regular testing throughout development 

@@ -69,12 +69,6 @@ class _FakeUser_7 extends _i1.SmartFake implements _i4.User {
     : super(parent, parentInvocation);
 }
 
-class _FakeGithubAuthProvider_8 extends _i1.SmartFake
-    implements _i3.GithubAuthProvider {
-  _FakeGithubAuthProvider_8(Object parent, Invocation parentInvocation)
-    : super(parent, parentInvocation);
-}
-
 /// A class which mocks [FirebaseAuth].
 ///
 /// See the documentation for Mockito's code generation for more information.
@@ -849,60 +843,36 @@ class MockUser extends _i1.Mock implements _i4.User {
           as _i5.Future<void>);
 }
 
-/// A class which mocks [GithubAuthProvider].
+/// A class which mocks [ConfirmationResult].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockGithubAuthProvider extends _i1.Mock
-    implements _i3.GithubAuthProvider {
-  MockGithubAuthProvider() {
+class MockConfirmationResult extends _i1.Mock
+    implements _i4.ConfirmationResult {
+  MockConfirmationResult() {
     _i1.throwOnMissingStub(this);
   }
 
   @override
-  List<String> get scopes =>
-      (super.noSuchMethod(Invocation.getter(#scopes), returnValue: <String>[])
-          as List<String>);
-
-  @override
-  Map<String, String> get parameters =>
+  String get verificationId =>
       (super.noSuchMethod(
-            Invocation.getter(#parameters),
-            returnValue: <String, String>{},
-          )
-          as Map<String, String>);
-
-  @override
-  String get providerId =>
-      (super.noSuchMethod(
-            Invocation.getter(#providerId),
+            Invocation.getter(#verificationId),
             returnValue: _i6.dummyValue<String>(
               this,
-              Invocation.getter(#providerId),
+              Invocation.getter(#verificationId),
             ),
           )
           as String);
 
   @override
-  _i3.GithubAuthProvider addScope(String? scope) =>
+  _i5.Future<_i4.UserCredential> confirm(String? verificationCode) =>
       (super.noSuchMethod(
-            Invocation.method(#addScope, [scope]),
-            returnValue: _FakeGithubAuthProvider_8(
-              this,
-              Invocation.method(#addScope, [scope]),
+            Invocation.method(#confirm, [verificationCode]),
+            returnValue: _i5.Future<_i4.UserCredential>.value(
+              _FakeUserCredential_2(
+                this,
+                Invocation.method(#confirm, [verificationCode]),
+              ),
             ),
           )
-          as _i3.GithubAuthProvider);
-
-  @override
-  _i3.GithubAuthProvider setCustomParameters(
-    Map<String, String>? customOAuthParameters,
-  ) =>
-      (super.noSuchMethod(
-            Invocation.method(#setCustomParameters, [customOAuthParameters]),
-            returnValue: _FakeGithubAuthProvider_8(
-              this,
-              Invocation.method(#setCustomParameters, [customOAuthParameters]),
-            ),
-          )
-          as _i3.GithubAuthProvider);
+          as _i5.Future<_i4.UserCredential>);
 }

@@ -1,0 +1,82 @@
+{
+	"info": {
+		"name": "Video Transcription API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Generate Chapters",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"videoPath\": \"videos/IH2Zp2bAPJOhriFakZswjFC96xH3/1739034967371.mp4\",\n    \"chapterDuration\": 15\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8080/generate_chapters",
+					"protocol": "http",
+					"host": ["localhost"],
+					"port": "8080",
+					"path": ["generate_chapters"]
+				},
+				"description": "Generate chapters for a video with specified duration"
+			}
+		},
+		{
+			"name": "Get Chapters",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8080/get_chapters/1739034967371",
+					"protocol": "http",
+					"host": ["localhost"],
+					"port": "8080",
+					"path": ["get_chapters", "1739034967371"]
+				},
+				"description": "Get existing chapters for a video"
+			}
+		},
+		{
+			"name": "Transcribe Video",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"videoPath\": \"videos/IH2Zp2bAPJOhriFakZswjFC96xH3/1739034967371.mp4\",\n    \"options\": {\n        \"summarize\": true,\n        \"detectTopics\": true,\n        \"extractKeywords\": true,\n        \"sentiment\": true\n    }\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8080/transcribe",
+					"protocol": "http",
+					"host": ["localhost"],
+					"port": "8080",
+					"path": ["transcribe"]
+				},
+				"description": "Generate full transcription with analysis options"
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080"
+		}
+	]
+} 

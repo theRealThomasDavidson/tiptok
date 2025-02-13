@@ -8,12 +8,12 @@ import '../widgets/video_player_widget.dart';
 import '../services/video_storage_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class VideoEditScreen extends StatefulWidget {
   final String videoPath;
   final FirebaseAuth auth;
   final FirebaseStorage storage;
-  static const int MAX_DURATION_SECONDS = 60;
 
   VideoEditScreen({
     super.key,
@@ -130,21 +130,6 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
       );
       return false;
     }
-
-    final duration = _videoController.value.duration;
-    if (duration.inSeconds > VideoEditScreen.MAX_DURATION_SECONDS) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Video is too long (${duration.inSeconds} seconds). Maximum allowed duration is ${VideoEditScreen.MAX_DURATION_SECONDS} seconds.'
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return false;
-    }
     return true;
   }
 
@@ -242,150 +227,133 @@ class _VideoEditScreenState extends State<VideoEditScreen> {
     }
   }
 
+  Future<void> _uploadVideo() async {
+    if (!await _checkDuration()) return;
+
+    setState(() {
+      _isLoading = true;
+      _uploadProgress = 0;
+    });
+
+    try {
+      final videoFile = File(_editedVideoPath ?? widget.videoPath);
+      final userId = widget.auth.currentUser?.uid;
+      if (userId == null) throw Exception('User not logged in');
+
+      await _storageService.uploadVideo(
+        videoFile,
+        userId,
+        (progress) {
+          setState(() {
+            _uploadProgress = progress;
+          });
+        },
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Upload successful!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading video: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Video')),
+      appBar: AppBar(
+        title: const Text('Edit Video'),
+        actions: [
+          if (_isInitialized && !_isLoading && !_isTrimming)
+            IconButton(
+              icon: const Icon(Icons.check),
+              onPressed: _uploadVideo,
+            ),
+        ],
+      ),
       body: Column(
         children: [
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                _error!,
-                style: const TextStyle(color: Colors.red),
+          if (_isInitialized) ...[
+            AspectRatio(
+              aspectRatio: _videoController.value.aspectRatio,
+              child: VideoPlayer(_videoController),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
+                  onPressed: _togglePlayPause,
+                ),
+              ],
+            ),
+            if (_uploadProgress > 0 && _uploadProgress < 1) ...[
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    LinearProgressIndicator(value: _uploadProgress),
+                    const SizedBox(height: 8),
+                    Text('${(_uploadProgress * 100).toStringAsFixed(1)}%'),
+                  ],
+                ),
               ),
-            ),
-          Expanded(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                VideoPlayerWidget(videoPath: _editedVideoPath ?? widget.videoPath),
-                if (_isLoading || _isTrimming)
-                  Container(
-                    color: Colors.black54,
-                    child: const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                  ),
-                if (_isInitialized && !_isLoading && !_isTrimming)
-                  GestureDetector(
-                    onTap: _togglePlayPause,
-                    child: Container(
-                      color: Colors.transparent,
-                      child: Center(
-                        child: AnimatedOpacity(
-                          opacity: _isPlaying ? 0.0 : 0.7,
-                          duration: const Duration(milliseconds: 200),
-                          child: Container(
-                            padding: const EdgeInsets.all(8.0),
-                            decoration: BoxDecoration(
-                              color: Colors.black45,
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child: Icon(
-                              _isPlaying ? Icons.pause : Icons.play_arrow,
-                              size: 50,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (_isInitialized && !_isLoading) Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Column(
-              children: [
-                RangeSlider(
-                  values: RangeValues(_startTime, _endTime),
-                  min: 0,
-                  max: _videoController.value.duration.inSeconds.toDouble(),
-                  onChanged: (RangeValues values) {
-                    setState(() {
-                      _startTime = values.start;
-                      _endTime = values.end;
-                    });
-                  },
-                  labels: RangeLabels(
-                    Duration(seconds: _startTime.round()).toString().split('.').first,
-                    Duration(seconds: _endTime.round()).toString().split('.').first,
-                  ),
-                ),
-                Text(
-                  'Selected duration: ${(_endTime - _startTime).round()} seconds',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
+            ],
+            const SizedBox(height: 16),
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  onPressed: _isLoading ? null : _trimVideo,
+                  child: const Text('Trim'),
                 ),
                 ElevatedButton(
-                  onPressed: (_isTrimming || _isLoading) ? null : _trimVideo,
-                  child: Text(_isTrimming ? 'Trimming...' : 'Trim'),
-                ),
-                ElevatedButton(
-                  onPressed: (_isTrimming || _isLoading) ? null : () async {
-                    if (!await _checkDuration()) return;
-                    
-                    final userId = widget.auth.currentUser?.uid;
-                    if (userId != null) {
-                      try {
-                        final videoToUpload = _editedVideoPath != null 
-                          ? File(_editedVideoPath!) 
-                          : File(widget.videoPath);
-                          
-                        await _storageService.uploadVideo(
-                          videoToUpload,
-                          userId,
-                          (progress) {
-                            setState(() {
-                              _uploadProgress = progress;
-                            });
-                          },
-                        );
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Upload successful!')),
-                          );
-                          Navigator.pop(context);
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Upload failed: $e')),
-                          );
-                        }
-                      }
-                    }
-                  },
+                  onPressed: _isLoading ? null : _uploadVideo,
                   child: const Text('Upload'),
+                ),
+                ElevatedButton(
+                  onPressed: _isLoading ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
                 ),
               ],
             ),
-          ),
-          if (_uploadProgress > 0 && _uploadProgress < 1)
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  CircularProgressIndicator(value: _uploadProgress),
-                  const SizedBox(height: 8),
-                  Text('${(_uploadProgress * 100).toStringAsFixed(1)}%'),
-                ],
+          ] else if (_error != null) ...[
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
+          ] else ...[
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
+          ],
         ],
       ),
     );
