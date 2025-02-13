@@ -155,16 +155,44 @@ class _PlaylistViewScreenState extends State<PlaylistViewScreen> {
     }
   }
 
-  void _navigateToPlayback(int startIndex) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PlaylistPlaybackScreen(
-          playlist: widget.playlist,
-          initialVideoIndex: startIndex,
-        ),
-      ),
-    );
+  // Get fresh playlist data before navigating to playback
+  Future<void> _navigateToPlayback(int startIndex) async {
+    try {
+      // Get fresh playlist data
+      final freshPlaylist = await widget.playlistService.getPlaylist(widget.playlist.id);
+      if (freshPlaylist == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error: Playlist not found'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PlaylistPlaybackScreen(
+              playlist: freshPlaylist,
+              initialVideoIndex: startIndex,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading playlist: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildVideoThumbnail(VideoModel video) {

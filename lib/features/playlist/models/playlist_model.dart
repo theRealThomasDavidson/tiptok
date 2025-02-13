@@ -16,7 +16,9 @@ class PlaylistModel {
   final List<String> videoIds;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final int videoCount;
+
+  // Get video count directly from videoIds length
+  int get videoCount => videoIds.length;
 
   PlaylistModel({
     required this.id,
@@ -28,7 +30,6 @@ class PlaylistModel {
     List<String>? videoIds,
     DateTime? createdAt,
     DateTime? updatedAt,
-    this.videoCount = 0,
   })  : videoIds = videoIds ?? [],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -36,6 +37,7 @@ class PlaylistModel {
   // Create from Firestore document
   factory PlaylistModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final videoIds = List<String>.from(data['videoIds'] ?? []);
     return PlaylistModel(
       id: doc.id,
       userId: data['userId'] as String,
@@ -46,10 +48,9 @@ class PlaylistModel {
         (e) => e.name == data['privacy'],
         orElse: () => PlaylistPrivacy.public,
       ),
-      videoIds: List<String>.from(data['videoIds'] ?? []),
+      videoIds: videoIds,
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       updatedAt: (data['updatedAt'] as Timestamp).toDate(),
-      videoCount: data['videoCount'] as int? ?? 0,
     );
   }
 
@@ -64,7 +65,7 @@ class PlaylistModel {
       'videoIds': videoIds,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
-      'videoCount': videoCount,
+      'videoCount': videoIds.length,  // Include for backwards compatibility
     };
   }
 
@@ -75,7 +76,6 @@ class PlaylistModel {
     String? thumbnailUrl,
     PlaylistPrivacy? privacy,
     List<String>? videoIds,
-    int? videoCount,
   }) {
     return PlaylistModel(
       id: id,
@@ -87,26 +87,21 @@ class PlaylistModel {
       videoIds: videoIds ?? this.videoIds,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
-      videoCount: videoCount ?? this.videoCount,
     );
   }
 
   // Add a video to the playlist
   PlaylistModel addVideo(String videoId) {
     if (videoIds.contains(videoId)) return this;
-    return copyWith(
-      videoIds: [...videoIds, videoId],
-      videoCount: videoCount + 1,
-    );
+    final newVideoIds = [...videoIds, videoId];
+    return copyWith(videoIds: newVideoIds);
   }
 
   // Remove a video from the playlist
   PlaylistModel removeVideo(String videoId) {
     if (!videoIds.contains(videoId)) return this;
-    return copyWith(
-      videoIds: videoIds.where((id) => id != videoId).toList(),
-      videoCount: videoCount - 1,
-    );
+    final newVideoIds = videoIds.where((id) => id != videoId).toList();
+    return copyWith(videoIds: newVideoIds);
   }
 
   // Reorder videos in the playlist
