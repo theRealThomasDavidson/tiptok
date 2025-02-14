@@ -7,7 +7,7 @@ import asyncio
 from typing import Dict, Any, List, Optional
 from datetime import timedelta
 
-chapters_bp = Blueprint('chapters', __name__)
+chapters_bp = Blueprint('chapters', __name__, url_prefix='/api')
 
 # Initialize Firebase Admin
 try:
