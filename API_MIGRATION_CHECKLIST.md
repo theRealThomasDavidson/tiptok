@@ -2,16 +2,16 @@
 
 ## What We Have ✅
 1. Working Flask API with:
-   - `/get_summary`: Generates and stores video summaries with keywords
-   - `/generate_chapters`: Creates semantic chapters from video content
+   - `/get_summary`: Generates and stores video summaries with keywords ✅
+   - `/generate_chapters`: Creates semantic chapters from video content with suggested titles ✅
 2. Core functionality working:
-   - Deepgram integration for transcription
-   - GPT-4 for chapter generation
-   - GPT-3.5 for summaries and keyword extraction
+   - Deepgram integration for transcription ✅
+   - GPT-4 for chapter generation ✅
+   - GPT-3.5 for summaries, keyword extraction, and title generation ✅
 3. Firebase integration:
-   - Video storage access
-   - Firestore for metadata
-   - Authentication working locally
+   - Video storage access ✅
+   - Firestore for metadata ✅
+   - Authentication working locally ✅
 
 ## Migration to EC2 Container 🔄
 
@@ -65,48 +65,48 @@
   - [x] Pull and run on EC2
 
 ### Frontend Updates
-- [ ] Update frontend API calls
-  - [ ] Point to new API endpoint
-  - [ ] Update request/response handling
-  - [ ] Add error handling
-- [ ] Test integration
-  - [ ] Video upload flow
-  - [ ] Chapter generation
-  - [ ] Summary generation
-  - [ ] Error scenarios
+- [x] Update frontend API calls
+  - [x] Point to new API endpoint
+  - [x] Update request/response handling
+  - [x] Add error handling
+- [x] Test integration
+  - [x] Video upload flow
+  - [x] Chapter generation
+  - [x] Summary generation
+  - [x] Error scenarios
 
 ## Testing Requirements
 - [x] API endpoint testing
   - [x] Test all endpoints with real data
     - [x] POST http://ec2-3-86-192-27.compute-1.amazonaws.com/api/get_summary
     - [x] POST http://ec2-3-86-192-27.compute-1.amazonaws.com/api/generate_chapters
-  - [ ] Verify Firebase integration
-  - [ ] Check error handling
-  - [ ] Video path handling
-    - [ ] Verify video paths are correctly stored in Firestore during upload
-    - [ ] Test path format consistency (videos/user_id/video_id.mp4)
-    - [ ] Validate path retrieval in API endpoints
-    - [ ] Test error cases for invalid paths
-- [ ] Load testing
-  - [ ] Test concurrent requests
-  - [ ] Verify performance
-- [ ] Integration testing
-  - [ ] Test with frontend
-  - [ ] Verify end-to-end flow
+  - [x] Verify Firebase integration
+  - [x] Check error handling
+  - [x] Video path handling
+    - [x] Verify video paths are correctly stored in Firestore during upload
+    - [x] Test path format consistency (videos/user_id/video_id.mp4)
+    - [x] Validate path retrieval in API endpoints
+    - [x] Test error cases for invalid paths
+- [x] Load testing
+  - [x] Test concurrent requests
+  - [x] Verify performance
+- [x] Integration testing
+  - [x] Test with frontend
+  - [x] Verify end-to-end flow
 
 ## Documentation
-- [ ] Update API documentation
-  - [ ] New endpoint URLs
-  - [ ] Request/response formats
-  - [ ] Error codes
-- [ ] Deployment documentation
-  - [ ] Container build instructions
-  - [ ] EC2 setup steps
-  - [ ] Environment configuration
-- [ ] Monitoring documentation
-  - [ ] Logging locations
-  - [ ] Monitoring dashboards
-  - [ ] Alert configurations
+- [x] Update API documentation
+  - [x] New endpoint URLs
+  - [x] Request/response formats
+  - [x] Error codes
+- [x] Deployment documentation
+  - [x] Container build instructions
+  - [x] EC2 setup steps
+  - [x] Environment configuration
+- [x] Monitoring documentation
+  - [x] Logging locations
+  - [x] Monitoring dashboards
+  - [x] Alert configurations
 
 ## Cost Considerations 💰
 - EC2 instance: ~$10-20/month (t2.micro)

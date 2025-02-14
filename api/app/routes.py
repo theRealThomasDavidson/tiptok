@@ -6,6 +6,7 @@ import os
 import asyncio
 from typing import Dict, Any, List, Optional
 from datetime import timedelta
+from google.cloud import firestore
 
 chapters_bp = Blueprint('chapters', __name__, url_prefix='/api')
 
@@ -147,7 +148,7 @@ def generate_semantic_chapters(video_url: str) -> Dict[str, Any]:
         video_url: The signed URL to access the video
         
     Returns:
-        Dict containing list of chapters. Returns empty chapters list if:
+        Dict containing list of chapters and suggested title. Returns empty chapters list if:
         - No audio/voice content detected
         - No paragraphs/sentences found in transcript
         - Unable to generate meaningful chapters
@@ -160,7 +161,7 @@ def generate_semantic_chapters(video_url: str) -> Dict[str, Any]:
         loop.close()
 
     if not transcript:
-        return {'chapters': []}
+        return {'chapters': [], 'suggested_title': 'Untitled Video'}
     
     blocks = []
     if 'paragraphs' in transcript:
@@ -169,18 +170,85 @@ def generate_semantic_chapters(video_url: str) -> Dict[str, Any]:
                 blocks.extend(para['sentences'])
     
     if not blocks:
-        return {'chapters': []}
+        return {'chapters': [], 'suggested_title': 'Untitled Video'}
         
     try:
         block_groups = group_blocks_with_gpt(blocks)
+        chapters = [
+            create_chapter_from_blocks([blocks[i] for i in group])
+            for group in block_groups
+        ]
+        
+        # Generate title based on all chapter content
+        all_text = ' '.join(chapter['text'] for chapter in chapters)
+        suggested_title = generate_playlist_title(all_text)
+        
         return {
-            'chapters': [
-                create_chapter_from_blocks([blocks[i] for i in group])
-                for group in block_groups
-            ]
+            'chapters': chapters,
+            'suggested_title': suggested_title
         }
     except Exception:
-        return {'chapters': []}
+        return {'chapters': [], 'suggested_title': 'Untitled Video'}
+
+def extract_keywords_with_gpt(summary: str) -> List[str]:
+    """Use GPT-3.5 to extract 4-6 keywords from a summary"""
+    prompt = f"""Analyze this video summary and extract 4-6 key terms that would be useful for:
+1. Search/discovery
+2. Content categorization
+3. Learning objectives
+
+Summary:
+{summary}
+
+Rules:
+- Focus on specific, meaningful terms (e.g., "machine_learning" over "learning")
+- Include any mentioned technologies, techniques, or core concepts
+- Use underscores for multi-word terms (e.g., "data_structures" "object_oriented_programming")
+- Exclude generic terms like "video", "tutorial", "introduction"
+
+Return only the keywords separated by spaces, with multi-word terms connected by underscores. Example:
+python data_structures exception_handling object_oriented_programming
+
+Your response should only contain the keywords, nothing else."""
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are a technical content analyzer that extracts precise, meaningful keywords for educational videos."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.2  # Lower temperature for more consistent results
+    )
+    
+    # Clean up any potential extra whitespace or formatting and ensure lowercase
+    keywords = [word.strip().lower() for word in response.choices[0].message.content.strip().split()]
+    return keywords[:6]  # Ensure we don't get more than 6 keywords
+
+def generate_playlist_title(summary: str) -> str:
+    """Use GPT-3.5 to generate a short, catchy playlist title based on video content"""
+    prompt = f"""Generate a short, catchy playlist title (2-5 words) based on this video summary:
+
+{summary}
+
+Rules:
+- Keep it concise (2-5 words)
+- Make it descriptive but engaging
+- Focus on the main topic/skill
+- Avoid generic words like "Tutorial" or "Guide"
+- Don't use special characters
+
+Return only the title, nothing else."""
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are a creative assistant that generates concise, engaging titles for educational content."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7  # Slightly higher temperature for creative titles
+    )
+    
+    return response.choices[0].message.content.strip()
 
 @chapters_bp.route('/get_summary', methods=['POST'])
 def get_summary():
@@ -199,13 +267,11 @@ def get_summary():
     if not video_path.startswith('videos/'):
         return jsonify({'error': 'Invalid video path format'}), 400
         
-    # First check if video exists and get URL
     try:
         url = get_video_url(video_path)
     except ValueError as e:
         return jsonify({'error': "howdy" + str(e)}), 404
     
-    # Create new event loop for async operation
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
@@ -215,20 +281,46 @@ def get_summary():
  
     if not response:
         return jsonify({
-            'summary': 'No voice content detected in this video'
+            'summary': 'No voice content detected in this video',
+            'keywords': [],
+            'suggested_title': 'Untitled Video'
         }), 200
 
-    # Get the transcript
     transcript = response.get('transcript')
     if not transcript:
         return jsonify({
-            'summary': 'No transcription available for this video'
+            'summary': 'No transcription available for this video',
+            'keywords': [],
+            'suggested_title': 'Untitled Video'
         }), 200
 
-    # Generate summary from transcript
     summary = summarize_chapter_with_gpt([{'text': transcript}])
+    keywords = extract_keywords_with_gpt(summary)
+    suggested_title = generate_playlist_title(summary)
+    
+    # Update Firestore document with the new summary data
+    try:
+        # Extract video ID from path (e.g., "videos/B26t813uX7r2cihYDdEk" -> "B26t813uX7r2cihYDdEk")
+        video_id = video_path.split('/')[-1]
+        db = firestore.client()
+        doc_ref = db.collection('videos').document(video_id)
+        
+        # Update the document with new summary data
+        doc_ref.update({
+            'summary': summary,
+            'keywords': keywords,
+            'suggestedTitle': suggested_title,
+            'lastProcessed': firestore.SERVER_TIMESTAMP
+        })
+        print(f"Updated Firestore document {video_id} with new summary data")
+    except Exception as e:
+        print(f"Error updating Firestore: {str(e)}")
+        # Continue anyway - we still want to return the summary to the client
+    
     return jsonify({
-        'summary': summary
+        'summary': summary,
+        'keywords': keywords,
+        'suggested_title': suggested_title
     }), 200
 
 @chapters_bp.route('/generate_chapters', methods=['POST'])
@@ -263,7 +355,8 @@ def generate_chapters():
         'chapters': [{
             'start': chapter['start'],
             'end': chapter['end'],
-        } for chapter in result['chapters']]
+        } for chapter in result['chapters']],
+        'suggested_title': result['suggested_title']
     }
     
     return jsonify(response), 200

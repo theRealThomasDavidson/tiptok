@@ -14,6 +14,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../video_processing/services/video_processing_service.dart';
 
 class VideoSegmentPlaylistEditorScreen extends StatefulWidget {
   final String videoPath;
@@ -43,6 +44,7 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
   bool _isFullVideo = true;
   Duration _currentPosition = Duration.zero;
   bool _isInitialized = false;
+  final VideoProcessingService _processingService = VideoProcessingService();
 
   @override
   void initState() {
@@ -158,11 +160,29 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
     final tempDir = await getTemporaryDirectory();
     final outputPath = '${tempDir.path}/segment_${segment.id}.mp4';
 
+    // Validate segment data
+    if (segment.startTime < 0 || segment.endTime <= segment.startTime) {
+      throw Exception('Invalid segment times: start=${segment.startTime}, end=${segment.endTime}');
+    }
+
+    // Verify original video exists
+    final videoFile = File(segment.originalVideoPath);
+    if (!await videoFile.exists()) {
+      throw Exception('Original video file not found: ${segment.originalVideoPath}');
+    }
+
     var startTime = Duration(milliseconds: (segment.startTime * 1000).round())
         .toString()
         .split('.')
         .first;
     final duration = segment.duration.toString().split('.').first;
+
+    debugPrint('Processing segment:');
+    debugPrint('- ID: ${segment.id}');
+    debugPrint('- Start time: $startTime');
+    debugPrint('- Duration: $duration');
+    debugPrint('- Input path: ${segment.originalVideoPath}');
+    debugPrint('- Output path: $outputPath');
 
     final command = '-ss $startTime -i "${segment.originalVideoPath}" -t $duration -c:v copy -c:a copy "$outputPath"';
 
@@ -170,9 +190,23 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
     final returnCode = await session.getReturnCode();
 
     if (!ReturnCode.isSuccess(returnCode)) {
-      throw Exception('Failed to process segment');
+      final logs = await session.getLogsAsString();
+      debugPrint('FFmpeg failed with logs:');
+      debugPrint(logs);
+      throw Exception('Failed to process segment. FFmpeg logs: $logs');
     }
 
+    // Verify output file exists and has size > 0
+    final outputFile = File(outputPath);
+    if (!await outputFile.exists()) {
+      throw Exception('Output file not created: $outputPath');
+    }
+    final size = await outputFile.length();
+    if (size == 0) {
+      throw Exception('Output file is empty: $outputPath');
+    }
+
+    debugPrint('Successfully processed segment to: $outputPath (${size} bytes)');
     return outputPath;
   }
 
@@ -628,16 +662,17 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
       _processingStatus = 'Uploading video for processing...';
     });
 
+    String? storagePath;
     try {
       final user = widget.auth.currentUser;
       if (user == null) throw Exception('User not logged in');
 
-      // Upload to videos directory (not processing)
+      // Upload to videos directory
       final videoFile = File(widget.videoPath);
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final videoId = '${timestamp}_${user.uid}';
-      final videoRef = FirebaseStorage.instance.ref()
-          .child('videos/${user.uid}/$videoId.mp4');
+      storagePath = 'videos/${user.uid}/$videoId.mp4';
+      final videoRef = FirebaseStorage.instance.ref().child(storagePath);
 
       // Upload the video
       final uploadTask = videoRef.putFile(videoFile);
@@ -651,49 +686,69 @@ class _VideoSegmentPlaylistEditorScreenState extends State<VideoSegmentPlaylistE
         });
       });
 
-      // Wait for upload to complete
       await uploadTask;
       
       setState(() {
-        _processingStatus = 'Processing video (this may take 5-10 minutes). Please keep this screen open.';
+        _processingStatus = 'Generating chapters...';
       });
 
-      // Listen for status updates in videoprocessing collection
-      FirebaseFirestore.instance
-          .collection('videoprocessing')
-          .doc(videoId)
-          .snapshots()
-          .listen((snapshot) {
-        final status = snapshot.data()?['status'];
+      // Generate chapters using our VideoProcessingService
+      final chapters = await _processingService.generateChapters(storagePath);
+      
+      // Convert chapters to segments
+      final newSegments = chapters.chapters.map((chapter) {
+        return VideoSegment(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          startTime: chapter.start,
+          endTime: chapter.end,
+          originalVideoPath: widget.videoPath,
+        );
+      }).toList();
+
+      if (mounted) {
         setState(() {
-          switch (status) {
-            case 'processing':
-              _processingStatus = 'Generating chapters... (this may take 5-10 minutes)';
-              break;
-            case 'completed':
-              _processingStatus = 'Chapters generated successfully!';
-              _isProcessing = false;
-              Navigator.pop(context); // Return to previous screen
-              break;
-            case 'error':
-              _processingStatus = 'Error: ${snapshot.data()?['error']}';
-              _isProcessing = false;
-              break;
-          }
+          _segments.clear();
+          _segments.addAll(newSegments);
+          _isProcessing = false;
+          _processingStatus = '';
+          
+          // Set the suggested title
+          _titleController.text = chapters.suggestedTitle.replaceAll('"', '');
+          _playlistTitle = _titleController.text;
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Chapters generated successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
         });
-      });
+      }
 
     } catch (e) {
-      setState(() {
-        _processingStatus = 'Error: $e';
-        _isProcessing = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error generating chapters: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        setState(() {
+          _processingStatus = 'Error: $e';
+          _isProcessing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating chapters: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      // Clean up the uploaded video
+      if (storagePath != null) {
+        try {
+          final videoRef = FirebaseStorage.instance.ref().child(storagePath);
+          await videoRef.delete();
+          debugPrint('Cleaned up temporary video upload: $storagePath');
+        } catch (e) {
+          debugPrint('Error cleaning up video upload: $e');
+        }
+      }
     }
   }
 } 
