@@ -4,17 +4,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter/return_code.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import '../models/video_model.dart';
+import '../../video_processing/services/video_processing_service.dart';
+import '../../video_processing/models/video_summary.dart';
 
 class VideoStorageService {
   final FirebaseStorage storage;
   final FirebaseFirestore _firestore;
+  final VideoProcessingService _processingService;
 
   VideoStorageService({
     FirebaseStorage? storage,
     FirebaseFirestore? firestore,
+    VideoProcessingService? processingService,
   }) : storage = storage ?? FirebaseStorage.instance,
-       _firestore = firestore ?? FirebaseFirestore.instance;
+       _firestore = firestore ?? FirebaseFirestore.instance,
+       _processingService = processingService ?? VideoProcessingService();
 
   Future<String> _generateThumbnail(File videoFile) async {
     final tempDir = await getTemporaryDirectory();
@@ -79,12 +85,59 @@ class VideoStorageService {
       final snapshot = await uploadTask;
       videoUrl = await snapshot.ref.getDownloadURL();
 
+      // Wait a bit for Firebase to process the video and retry API call if needed
+      VideoSummary? summary;
+      int retries = 3;
+      while (retries > 0) {
+        try {
+          // Small delay before each attempt
+          await Future.delayed(Duration(seconds: 2));
+          
+          // Check if App Check token is available
+          try {
+            await FirebaseAppCheck.instance.getToken();
+          } catch (appCheckError) {
+            print('Warning: App Check error: $appCheckError');
+            // Continue anyway - we're using debug provider
+          }
+          
+          summary = await _processingService.getSummary(videoPath);
+          break; // Success, exit loop
+        } catch (e) {
+          print('Attempt ${3 - retries + 1} failed: $e');
+          retries--;
+          if (retries == 0) {
+            if (e.toString().contains('No AppCheckProvider installed')) {
+              // If it's an App Check error, try one last time without waiting
+              try {
+                summary = await _processingService.getSummary(videoPath);
+                break;
+              } catch (finalError) {
+                throw Exception('Failed to process video after retries: $finalError');
+              }
+            } else {
+              rethrow; // Other errors, just rethrow
+            }
+          }
+          // Otherwise continue to next retry
+        }
+      }
+
+      if (summary == null) {
+        throw Exception('Failed to get video summary after retries');
+      }
+
       // Create video metadata in Firestore
       final videoRef = await _firestore.collection('videos').add({
         'userId': userId,
         'url': videoUrl,
+        'storagePath': videoPath,
         'thumbnailUrl': thumbnailUrl,
+        'thumbnailPath': thumbnailPath != null ? 'thumbnails/$userId/${timestamp}_thumb.jpg' : null,
         'timestamp': FieldValue.serverTimestamp(),
+        'summary': summary.summary,
+        'keywords': summary.keywords,
+        'suggestedTitle': summary.suggestedTitle,
       });
 
       // Create and return the video model
@@ -92,8 +145,12 @@ class VideoStorageService {
         id: videoRef.id,
         userId: userId,
         url: videoUrl,
+        storagePath: videoPath,
         thumbnailUrl: thumbnailUrl,
         timestamp: DateTime.now(),
+        summary: summary.summary,
+        keywords: summary.keywords,
+        suggestedTitle: summary.suggestedTitle,
       );
     } catch (e) {
       // If thumbnail or video was uploaded but Firestore update failed, try to clean up
@@ -127,12 +184,16 @@ class VideoStorageService {
           try {
             final url = await item.getDownloadURL();
             final metadata = await item.getMetadata();
+            final storagePath = item.fullPath;
             
-            // Try to get thumbnail URL
+            // Try to get thumbnail URL and path
             String? thumbnailUrl;
+            String? thumbnailPath;
             try {
-              final thumbRef = storage.ref('thumbnails/${prefix.name}/${item.name}_thumb.jpg');
+              final thumbPath = 'thumbnails/${prefix.name}/${item.name}_thumb.jpg';
+              final thumbRef = storage.ref(thumbPath);
               thumbnailUrl = await thumbRef.getDownloadURL();
+              thumbnailPath = thumbPath;
             } catch (e) {
               // Ignore if thumbnail doesn't exist
               print('Thumbnail not found for ${item.name}: $e');
@@ -143,7 +204,9 @@ class VideoStorageService {
               id: item.name,
               userId: prefix.name,
               url: url,
+              storagePath: storagePath,
               thumbnailUrl: thumbnailUrl,
+              thumbnailPath: thumbnailPath,
               timestamp: metadata.timeCreated ?? DateTime.now(),
             ));
           } catch (e) {

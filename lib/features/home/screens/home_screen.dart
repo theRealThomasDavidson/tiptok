@@ -4,6 +4,8 @@ import 'package:tiptok/features/authentication/screens/sign_in_screen.dart';
 import 'package:tiptok/features/video/screens/video_upload_screen.dart';
 import 'package:tiptok/features/video/screens/video_feed_screen.dart';
 import 'package:tiptok/features/playlist/screens/playlist_list_screen.dart';
+import 'package:tiptok/features/video/services/video_service.dart';
+import 'package:tiptok/features/video_processing/presentation/screens/video_search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,12 +16,20 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  final VideoService _videoService = VideoService();
 
-  final List<Widget> _screens = [
-    const VideoFeedScreen(),
-    const VideoUploadScreen(),
-    PlaylistListScreen(),
-  ];
+  static late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      const VideoFeedScreen(),
+      const VideoUploadScreen(),
+      PlaylistListScreen(),
+      VideoSearchScreen(videoService: _videoService),
+    ];
+  }
 
   void _signOut(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
@@ -66,6 +76,10 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.playlist_play),
             label: 'Playlists',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: 'Search',
           ),
         ],
       ),

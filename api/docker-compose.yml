@@ -4,7 +4,7 @@ services:
   api:
     build: .
     ports:
-      - "8080:8080"
+      - "80:80"
     environment:
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
       - PYTHONUNBUFFERED=1
@@ -14,5 +14,5 @@ services:
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
       - ./app:/app/app  # For development hot-reload
       - .:/app  # Mount entire directory for hot reload
-    command: python -m flask --app app:create_app run --host=0.0.0.0 --port=8080 --debug
+    command: python -m flask --app app:create_app run --host=0.0.0.0 --port=80 --debug
     restart: unless-stopped 

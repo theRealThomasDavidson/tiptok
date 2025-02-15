@@ -69,6 +69,11 @@
   - [x] Implement integration tests
   - [x] Performance testing for video playback
   - [x] Authentication flow testing
+  - [ ] Video Upload Path Integration
+    - [ ] Ensure video uploads store path in Firestore document
+    - [ ] Verify path format matches API expectations (videos/user_id/video_id.mp4)
+    - [ ] Add validation for path consistency
+    - [ ] Test path retrieval in API endpoints
   - [ ] Commit and merge to `develop`
 
 ## Documentation
