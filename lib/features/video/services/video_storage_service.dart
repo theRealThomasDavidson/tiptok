@@ -131,7 +131,9 @@ class VideoStorageService {
       final videoRef = await _firestore.collection('videos').add({
         'userId': userId,
         'url': videoUrl,
+        'storagePath': videoPath,
         'thumbnailUrl': thumbnailUrl,
+        'thumbnailPath': thumbnailPath != null ? 'thumbnails/$userId/${timestamp}_thumb.jpg' : null,
         'timestamp': FieldValue.serverTimestamp(),
         'summary': summary.summary,
         'keywords': summary.keywords,
@@ -143,6 +145,7 @@ class VideoStorageService {
         id: videoRef.id,
         userId: userId,
         url: videoUrl,
+        storagePath: videoPath,
         thumbnailUrl: thumbnailUrl,
         timestamp: DateTime.now(),
         summary: summary.summary,
@@ -181,12 +184,16 @@ class VideoStorageService {
           try {
             final url = await item.getDownloadURL();
             final metadata = await item.getMetadata();
+            final storagePath = item.fullPath;
             
-            // Try to get thumbnail URL
+            // Try to get thumbnail URL and path
             String? thumbnailUrl;
+            String? thumbnailPath;
             try {
-              final thumbRef = storage.ref('thumbnails/${prefix.name}/${item.name}_thumb.jpg');
+              final thumbPath = 'thumbnails/${prefix.name}/${item.name}_thumb.jpg';
+              final thumbRef = storage.ref(thumbPath);
               thumbnailUrl = await thumbRef.getDownloadURL();
+              thumbnailPath = thumbPath;
             } catch (e) {
               // Ignore if thumbnail doesn't exist
               print('Thumbnail not found for ${item.name}: $e');
@@ -197,7 +204,9 @@ class VideoStorageService {
               id: item.name,
               userId: prefix.name,
               url: url,
+              storagePath: storagePath,
               thumbnailUrl: thumbnailUrl,
+              thumbnailPath: thumbnailPath,
               timestamp: metadata.timeCreated ?? DateTime.now(),
             ));
           } catch (e) {

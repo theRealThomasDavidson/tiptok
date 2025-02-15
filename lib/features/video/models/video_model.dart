@@ -4,7 +4,9 @@ class VideoModel {
   final String id;
   final String userId;
   final String url;
+  final String? storagePath;
   final String? thumbnailUrl;
+  final String? thumbnailPath;
   final String? name;
   final String? description;
   final DateTime timestamp;
@@ -16,7 +18,9 @@ class VideoModel {
     required this.id,
     required this.userId,
     required this.url,
+    this.storagePath,
     this.thumbnailUrl,
+    this.thumbnailPath,
     this.name,
     this.description,
     required this.timestamp,
@@ -29,7 +33,9 @@ class VideoModel {
     'id': id,
     'userId': userId,
     'url': url,
+    'storagePath': storagePath,
     'thumbnailUrl': thumbnailUrl,
+    'thumbnailPath': thumbnailPath,
     'name': name,
     'description': description,
     'timestamp': timestamp.toIso8601String(),
@@ -47,7 +53,9 @@ class VideoModel {
       id: json['id'] as String,
       userId: json['userId'] as String,
       url: json['url'] as String,
+      storagePath: json['storagePath'] as String?,
       thumbnailUrl: json['thumbnailUrl'] as String?,
+      thumbnailPath: json['thumbnailPath'] as String?,
       name: json['name'] as String?,
       description: json['description'] as String?,
       timestamp: DateTime.parse(json['timestamp'] as String),

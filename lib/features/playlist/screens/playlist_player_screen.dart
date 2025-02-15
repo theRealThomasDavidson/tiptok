@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
 import '../../../features/video/models/video_model.dart';
+import '../../../features/video/widgets/video_player_widget.dart';
 
 class PlaylistPlayerScreen extends StatefulWidget {
   final List<VideoModel> videos;
@@ -19,134 +19,39 @@ class PlaylistPlayerScreen extends StatefulWidget {
 }
 
 class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
-  VideoPlayerController? _controller;
   late int _currentVideoIndex;
-  bool _isInitialized = false;
-  bool _isLoading = false;
-  String? _error;
+  late PageController _pageController;
+  double _currentAspectRatio = 16 / 9; // Default aspect ratio until video loads
 
   @override
   void initState() {
     super.initState();
     _currentVideoIndex = widget.initialVideoIndex;
-    _initializeVideo();
-  }
-
-  Future<void> _cleanupCurrentVideo() async {
-    if (_controller != null) {
-      await _controller!.pause();
-      await _controller!.dispose();
-      _controller = null;
-    }
-    if (mounted) {
-      setState(() {
-        _isInitialized = false;
-      });
-    }
-  }
-
-  Future<void> _initializeVideo() async {
-    if (widget.videos.isEmpty) return;
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    // Cleanup previous video first
-    await _cleanupCurrentVideo();
-
-    try {
-      // Create new controller with lower quality settings
-      _controller = VideoPlayerController.networkUrl(
-        Uri.parse(widget.videos[_currentVideoIndex].url),
-        videoPlayerOptions: VideoPlayerOptions(
-          mixWithOthers: true, // Allows mixing with other audio
-        ),
-        formatHint: VideoFormat.hls, // Use HLS if available for adaptive streaming
-      );
-
-      // Initialize with error handling
-      await _controller!.initialize().timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw Exception('Video initialization timed out');
-        },
-      );
-
-      _controller!.addListener(_videoListener);
-      
-      if (mounted) {
-        setState(() {
-          _isInitialized = true;
-          _isLoading = false;
-        });
-        _controller!.play();
-      }
-    } catch (e) {
-      // Cleanup on error
-      await _cleanupCurrentVideo();
-      
-      if (mounted) {
-        setState(() {
-          _error = 'Error playing video: $e';
-          _isLoading = false;
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_error!),
-            backgroundColor: Colors.red,
-            action: SnackBarAction(
-              label: 'Retry',
-              onPressed: _initializeVideo,
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  void _videoListener() {
-    if (_controller?.value.hasError ?? false) {
-      setState(() {
-        _error = _controller?.value.errorDescription;
-      });
-      return;
-    }
-    
-    if (_controller?.value.position != null && 
-        _controller?.value.duration != null &&
-        _controller!.value.position >= _controller!.value.duration) {
-      _playNextVideo();
-    }
-  }
-
-  Future<void> _playNextVideo() async {
-    if (_currentVideoIndex < widget.videos.length - 1) {
-      _currentVideoIndex++;
-      await _initializeVideo();
-    }
-  }
-
-  Future<void> _playPreviousVideo() async {
-    if (_currentVideoIndex > 0) {
-      _currentVideoIndex--;
-      await _initializeVideo();
-    }
-  }
-
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$minutes:$seconds';
+    _pageController = PageController(initialPage: _currentVideoIndex);
   }
 
   @override
   void dispose() {
-    _cleanupCurrentVideo();
+    _pageController.dispose();
     super.dispose();
+  }
+
+  void _playNextVideo() {
+    if (_currentVideoIndex < widget.videos.length - 1) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _playPreviousVideo() {
+    if (_currentVideoIndex > 0) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   @override
@@ -159,64 +64,59 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
       ),
       body: Column(
         children: [
-          // Video player
-          AspectRatio(
-            aspectRatio: _isInitialized && _controller != null 
-                ? _controller!.value.aspectRatio 
-                : 16 / 9,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                if (_isInitialized && _controller != null)
-                  VideoPlayer(_controller!)
-                else if (_isLoading)
-                  const Center(child: CircularProgressIndicator())
-                else if (_error != null)
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.error, color: Colors.red[300], size: 48),
-                        const SizedBox(height: 8),
-                        Text(
-                          _error!,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.red[300]),
-                        ),
-                        const SizedBox(height: 8),
-                        ElevatedButton(
-                          onPressed: _initializeVideo,
-                          child: const Text('Retry'),
-                        ),
-                      ],
+          // Video Player with PageView for swipe navigation
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final screenHeight = MediaQuery.of(context).size.height;
+              final playerHeight = screenHeight * 0.6; // 60% of screen height
+              final playerWidth = constraints.maxWidth;
+
+              // Calculate dimensions to maintain aspect ratio
+              late final double effectiveWidth;
+              late final double effectiveHeight;
+
+              if (playerWidth / playerHeight > _currentAspectRatio) {
+                // Screen is wider than video aspect ratio
+                effectiveHeight = playerHeight;
+                effectiveWidth = playerHeight * _currentAspectRatio;
+              } else {
+                // Screen is narrower than video aspect ratio
+                effectiveWidth = playerWidth;
+                effectiveHeight = playerWidth / _currentAspectRatio;
+              }
+
+              return Container(
+                height: playerHeight,
+                color: Colors.black,
+                child: Center(
+                  child: SizedBox(
+                    width: effectiveWidth,
+                    height: effectiveHeight,
+                    child: PageView.builder(
+                      controller: _pageController,
+                      onPageChanged: (index) {
+                        setState(() {
+                          _currentVideoIndex = index;
+                        });
+                      },
+                      itemCount: widget.videos.length,
+                      itemBuilder: (context, index) {
+                        return VideoPlayerWidget(
+                          videoUrl: widget.videos[index].url,
+                          onAspectRatioUpdated: (aspectRatio) {
+                            if (index == _currentVideoIndex) {
+                              setState(() {
+                                _currentAspectRatio = aspectRatio;
+                              });
+                            }
+                          },
+                        );
+                      },
                     ),
                   ),
-                
-                // Play/Pause overlay
-                if (_isInitialized && _controller != null)
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        if (_controller!.value.isPlaying) {
-                          _controller!.pause();
-                        } else {
-                          _controller!.play();
-                        }
-                      });
-                    },
-                    child: Container(
-                      color: Colors.transparent,
-                      child: Center(
-                        child: Icon(
-                          _controller!.value.isPlaying ? Icons.pause : Icons.play_arrow,
-                          size: 64.0,
-                          color: Colors.white.withOpacity(0.7),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+                ),
+              );
+            },
           ),
 
           // Video controls
@@ -233,27 +133,9 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                if (_isInitialized && _controller != null) ...[
-                  const SizedBox(height: 8),
-                  // Progress bar
-                  VideoProgressIndicator(
-                    _controller!,
-                    allowScrubbing: true,
-                    padding: EdgeInsets.zero,
-                  ),
-                  const SizedBox(height: 4),
-                  // Time
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(_formatDuration(_controller!.value.position)),
-                      Text(_formatDuration(_controller!.value.duration)),
-                    ],
-                  ),
-                ],
+                const SizedBox(height: 16),
                 
                 // Playlist controls
-                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -261,22 +143,6 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
                       icon: const Icon(Icons.skip_previous),
                       onPressed: _currentVideoIndex > 0 ? _playPreviousVideo : null,
                     ),
-                    const SizedBox(width: 16),
-                    if (_isInitialized && _controller != null)
-                      IconButton(
-                        icon: Icon(
-                          _controller!.value.isPlaying ? Icons.pause : Icons.play_arrow,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            if (_controller!.value.isPlaying) {
-                              _controller!.pause();
-                            } else {
-                              _controller!.play();
-                            }
-                          });
-                        },
-                      ),
                     const SizedBox(width: 16),
                     IconButton(
                       icon: const Icon(Icons.skip_next),
@@ -329,10 +195,11 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
                   tileColor: isCurrentVideo ? Colors.blue.withOpacity(0.1) : null,
                   onTap: () {
                     if (index != _currentVideoIndex) {
-                      setState(() {
-                        _currentVideoIndex = index;
-                      });
-                      _initializeVideo();
+                      _pageController.animateToPage(
+                        index,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
                     }
                   },
                 );

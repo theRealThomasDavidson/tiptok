@@ -48,16 +48,13 @@ class _PlaylistPlaybackScreenState extends State<PlaylistPlaybackScreen> {
     });
 
     try {
-      final allVideos = await widget.videoService.getAllVideos();
-      
-      // Filter and sort videos according to playlist order
+      // Get fresh videos one by one
       final playlistVideos = <VideoModel>[];
       for (final videoId in widget.playlist.videoIds) {
-        final video = allVideos.firstWhere(
-          (v) => v.id == videoId,
-          orElse: () => throw Exception('Video $videoId not found'),
-        );
-        playlistVideos.add(video);
+        final video = await widget.videoService.getVideo(videoId);
+        if (video != null) {
+          playlistVideos.add(video);
+        }
       }
 
       setState(() {
